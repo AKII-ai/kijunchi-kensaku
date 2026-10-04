@@ -352,18 +352,46 @@ function applyWidths(table, widths) {
   table.classList.add("is-fixed");
 }
 
+/**
+ * 画面の幅に収まるよう、列を縮める。物質名は 110px、ほかの列は 60px より狭くしない。
+ * それでも収まらない（スマホなど）ときは縮めず、横にスクロールさせる。
+ */
+function fitToWidth(widths) {
+  const avail = (els.summary.querySelector(".table-scroll")?.clientWidth || 0) - 2;
+  const total = widths.reduce((a, b) => a + b, 0);
+  if (avail <= 0 || total <= avail) return widths;
+  const mins = widths.map((w, i) => Math.min(w, i === 0 ? 110 : 60));
+  const minTotal = mins.reduce((a, b) => a + b, 0);
+  if (minTotal > avail) return widths;
+  const ratio = (total - avail) / (total - minTotal);
+  const fitted = widths.map((w, i) => Math.floor(w - (w - mins[i]) * ratio));
+  return fitted;
+}
+
+/** 表が枠に収まっているかで、横スクロールの有無を切り替える。 */
+function updateSummaryOverflow() {
+  const scroll = els.summary.querySelector(".table-scroll");
+  const table = summaryCols?.table;
+  if (!scroll || !table) return;
+  scroll.classList.toggle("fits", table.getBoundingClientRect().width <= scroll.clientWidth + 1);
+}
+
 function setupSummaryColumns() {
   const table = els.summary.querySelector("table.summary-table");
   if (!table) return;
+  els.summary.querySelector(".table-scroll")?.classList.remove("fits");
   const ths = [...table.tHead.rows[0].cells];
-  const natural = measureNatural(table);
-  if (natural.every((w) => w === 0)) {
+  const measured = measureNatural(table);
+  if (measured.every((w) => w === 0)) {
     summaryCols = { table, natural: null, widths: null };
     return;
   }
+  // 「元の幅」は、画面の幅に合わせたあとの幅。
+  const natural = fitToWidth(measured);
   const widths = loadWidths(ths.length) || natural.slice();
   summaryCols = { table, natural, widths };
   applyWidths(table, widths);
+  updateSummaryOverflow();
   ths.forEach((th, i) => {
     const grip = document.createElement("span");
     grip.className = "col-grip";
@@ -394,6 +422,7 @@ function bindSummaryResize() {
     const move = (ev) => {
       summaryCols.widths[i] = Math.max(MIN_COL_PX, Math.round(start + ev.clientX - startX));
       applyWidths(summaryCols.table, summaryCols.widths);
+      updateSummaryOverflow();
     };
     const end = () => {
       grip.classList.remove("is-active");
@@ -412,6 +441,7 @@ function bindSummaryResize() {
     const i = Number(grip.dataset.col);
     summaryCols.widths[i] = summaryCols.natural[i];
     applyWidths(summaryCols.table, summaryCols.widths);
+    updateSummaryOverflow();
     saveWidths(summaryCols.widths);
   });
   els.summary.addEventListener("click", (e) => {
@@ -419,6 +449,20 @@ function bindSummaryResize() {
     saveWidths(null);
     els.summary.querySelectorAll(".col-grip").forEach((g) => g.remove());
     setupSummaryColumns();
+  });
+  // 窓の大きさが変わったら、幅を自分で変えていない人だけ、画面の幅に合わせ直す。
+  let timer = 0;
+  window.addEventListener("resize", () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      if (!summaryCols?.table || els.summary.hidden) return;
+      if (loadWidths(summaryCols.widths?.length || 0)) {
+        updateSummaryOverflow();
+        return;
+      }
+      els.summary.querySelectorAll(".col-grip").forEach((g) => g.remove());
+      setupSummaryColumns();
+    }, 150);
   });
 }
 

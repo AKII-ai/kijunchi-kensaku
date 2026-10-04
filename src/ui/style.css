@@ -303,16 +303,18 @@ tr.is-removed td { color: #777; text-decoration: line-through; }
 .summary__heading { margin: 0 0 4px; font-size: 1.15rem; }
 .summary__lead { margin: 0 0 12px; color: #555; font-size: 0.95rem; }
 
-/* 表の枠はウィンドウの高さに合わせる。中で縦横にスクロールする。 */
+/*
+ * 表は全部の行を出し、縦はページ全体でスクロールする（表の中だけの縦スクロールは作らない）。
+ * 画面の幅に収まるとき（fits）は枠のはみ出しを許し、見出しの行がページの上に付いてくるようにする。
+ * 収まらないとき（スマホなど）だけ、横にスクロールする。
+ */
 .summary .table-scroll {
-  max-height: 75vh;
-  max-height: calc(100dvh - 96px);
-  min-height: 240px;
-  overflow: auto;
-  overscroll-behavior: contain;
+  overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   border: 1px solid #ccc;
 }
+
+.summary .table-scroll.fits { overflow: visible; }
 
 /* 列が多いので、幅は中身に合わせる。見出しと物質名は固定して、横・縦にスクロールしても見える。 */
 table.summary-table {
@@ -478,7 +480,6 @@ table.summary-table {
   .summary-table thead th { min-width: 5em; }
   .summary-table .col-name { min-width: 7em; }
   .summary-table td .long { width: 10em; }
-  .summary .table-scroll { max-height: calc(100dvh - 72px); }
   /* 法令ごとの表は、列が潰れないよう最小幅を持たせて横にスクロールする。 */
   #detail table { min-width: 640px; }
   .law-card { grid-template-columns: 1fr; }
