@@ -17,7 +17,7 @@
   - 使う見出し:        pdf-section-table で、この見出しの後の表を読む（「別紙１*」のように * で前方一致）
   - 次の見出し:        pdf-section-table で、この見出しの前までを読む（書かなければ文書の終わりまで）
 
-PDF は PyMuPDF（pip install pymupdf）の罫線検出で表を読む。
+PDF は PyMuPDF（pip install pymupdf、import pymupdf）の罫線検出で表を読む。
 
 新しい形のページを読むときは、read_xxx(path, note) を1つ書いて READERS に足す。
 返すのは [{"item": 項目名, "value_raw": 基準の文言}] の並び。ほかは直さない。
@@ -91,7 +91,7 @@ def read_pdf_table(path: Path, table_no: int, item_col: int, value_col: int) -> 
     項目名・文言の片方が空文字の行は、ページの境目で割れた上の行の続きとしてつなぐ。
     結合セル（None）がある行は、備考など表の本体でない行なので捨てる。
     """
-    import fitz  # PyMuPDF
+    import pymupdf as fitz  # PyMuPDF
 
     rows: list[list] = []
     for page in fitz.open(path):
@@ -141,7 +141,7 @@ def read_pdf_section_table(path: Path, start: str, end: str, item_col: int, valu
 
     1つの PDF に同じ形の表がいくつもあるとき（要監視項目の「公共用水域」と「地下水」など）に使う。
     """
-    import fitz
+    import pymupdf as fitz
 
     if not start:
         raise ValueError("「使う見出し」が書かれていない")
@@ -198,7 +198,7 @@ AMEND = re.compile(r"「([^「」]+)」の別表下欄に掲げる値を(.+?)に
 
 def read_amendment(path: Path) -> list[dict]:
     """改正の概要の「「物質」の別表下欄に掲げる値を…に改める」だけを読む。"""
-    import fitz
+    import pymupdf as fitz
 
     text = "".join(page.get_text() for page in fitz.open(path))
     text = re.sub(r"[\s　]+", "", text)
@@ -301,7 +301,7 @@ def cmd_read() -> int:
 def body_of(data: bytes, suffix: str) -> str:
     """比べるための本文。HTML はタグとスクリプトを除いた文字、PDF は全ページの文字。"""
     if suffix == ".pdf":
-        import fitz
+        import pymupdf as fitz
 
         return clean("".join(p.get_text() for p in fitz.open(stream=data, filetype="pdf")))
     text = data.decode("utf-8", errors="replace")
