@@ -1,0 +1,121 @@
+{
+ "name": "地下水環境基準",
+ "url": "https://www.env.go.jp/content/000344565.pdf",
+ "obtained": "2026-10-04",
+ "checked": "2026-10-04",
+ "file": "sources/saved/地下水環境基準_別表_2026-10-04.pdf",
+ "rows": [
+  {
+   "item": "カドミウム",
+   "value_raw": "0.003mg／L以下"
+  },
+  {
+   "item": "全シアン",
+   "value_raw": "検出されないこと。"
+  },
+  {
+   "item": "鉛",
+   "value_raw": "0.01mg／L以下"
+  },
+  {
+   "item": "六価クロム",
+   "value_raw": "0.02mg／L以下"
+  },
+  {
+   "item": "砒素",
+   "value_raw": "0.01mg／L以下"
+  },
+  {
+   "item": "総水銀",
+   "value_raw": "0.0005mg／L以下"
+  },
+  {
+   "item": "アルキル水銀",
+   "value_raw": "検出されないこと。"
+  },
+  {
+   "item": "PCB",
+   "value_raw": "検出されないこと。"
+  },
+  {
+   "item": "ジクロロメタン",
+   "value_raw": "0.02mg／L以下"
+  },
+  {
+   "item": "四塩化炭素",
+   "value_raw": "0.002mg／L以下"
+  },
+  {
+   "item": "クロロエチレン(別名塩化ビニル又は塩化ビニルモノマー)",
+   "value_raw": "0.002mg／L以下"
+  },
+  {
+   "item": "1，2―ジクロロエタン",
+   "value_raw": "0.004mg／L以下"
+  },
+  {
+   "item": "1，1―ジクロロエチレン",
+   "value_raw": "0.1mg／L以下"
+  },
+  {
+   "item": "1，2―ジクロロエチレン",
+   "value_raw": "0.04mg／L以下"
+  },
+  {
+   "item": "1，1，1―トリクロロエタン",
+   "value_raw": "1mg／L以下"
+  },
+  {
+   "item": "1，1，2―トリクロロエタン",
+   "value_raw": "0.006mg／L以下"
+  },
+  {
+   "item": "トリクロロエチレン",
+   "value_raw": "0.01mg／L以下"
+  },
+  {
+   "item": "テトラクロロエチレン",
+   "value_raw": "0.01mg／L以下"
+  },
+  {
+   "item": "1，3―ジクロロプロペン",
+   "value_raw": "0.002mg／L以下"
+  },
+  {
+   "item": "チウラム",
+   "value_raw": "0.006mg／L以下"
+  },
+  {
+   "item": "シマジン",
+   "value_raw": "0.003mg／L以下"
+  },
+  {
+   "item": "チオベンカルブ",
+   "value_raw": "0.02mg／L以下"
+  },
+  {
+   "item": "ベンゼン",
+   "value_raw": "0.01mg／L以下"
+  },
+  {
+   "item": "セレン",
+   "value_raw": "0.01mg／L以下"
+  },
+  {
+   "item": "硝酸性窒素及び亜硝酸性窒素",
+   "value_raw": "10mg／L以下"
+  },
+  {
+   "item": "ふっ素",
+   "value_raw": "0.8mg／L以下"
+  },
+  {
+   "item": "ほう素",
+   "value_raw": "1mg／L以下"
+  },
+  {
+   "item": "1，4―ジオキサン",
+   "value_raw": "0.05mg／L以下"
+  }
+ ]
+}

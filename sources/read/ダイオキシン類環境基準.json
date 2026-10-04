@@ -1,0 +1,25 @@
+{
+ "name": "ダイオキシン類環境基準",
+ "url": "https://www.env.go.jp/kijun/dioxin.html",
+ "obtained": "2026-10-04",
+ "checked": "2026-10-04",
+ "file": "sources/saved/ダイオキシン類環境基準_2026-10-04.html",
+ "rows": [
+  {
+   "item": "大気",
+   "value_raw": "0.6pg-TEQ／m3以下"
+  },
+  {
+   "item": "水質（水底の底質を除く。）",
+   "value_raw": "１pg-TEQ／l以下"
+  },
+  {
+   "item": "水底の底質",
+   "value_raw": "150pg-TEQ／g以下"
+  },
+  {
+   "item": "土壌",
+   "value_raw": "1,000pg-TEQ／ｇ以下"
+  }
+ ]
+}

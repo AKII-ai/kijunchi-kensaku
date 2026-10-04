@@ -1,0 +1,491 @@
+/* 画面のつくりと色の意味は docs/画面.md。 */
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: #fff;
+  color: #222;
+  font-family: "Yu Gothic", "YuGothic", "Meiryo", sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 16px;
+  padding: 12px 24px;
+  border-bottom: 1px solid #ccc;
+  background: #f7f7f7;
+}
+
+.top span { color: #666; font-size: 0.85rem; }
+
+/* 本文幅はウィンドウに合わせて広がる。 */
+.wrap {
+  width: 100%;
+  max-width: none;
+  padding: 24px 32px;
+}
+
+h1 {
+  margin: 0 0 16px;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+
+.search label { font-weight: 700; }
+
+.search input {
+  flex: 1;
+  min-width: 12rem;
+  padding: 8px 10px;
+  border: 1px solid #888;
+  font: inherit;
+}
+
+.search button,
+.back {
+  padding: 8px 16px;
+  border: 1px solid #333;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* 検索ボタンは青地に白文字。 */
+.search button {
+  background: #1a56a8;
+  color: #fff;
+}
+
+.hints { margin: 0 0 8px; color: #444; }
+
+.hints button {
+  margin-right: 4px;
+  padding: 2px 8px;
+  border: 1px solid #888;
+  background: #fff;
+  color: #1a56a8;
+  font: inherit;
+  cursor: pointer;
+}
+
+.status { margin: 0 0 20px; color: #555; }
+/* URL や取得が失敗した文は赤い文字。 */
+.status[data-kind="error"],
+.status--error { color: #a40000; }
+
+.featured { margin-top: 8px; }
+
+.featured__heading { margin: 0 0 4px; font-size: 1.15rem; }
+.featured__lead { margin: 0 0 16px; color: #555; font-size: 0.95rem; }
+.featured__group { margin-bottom: 20px; }
+
+.featured__group h3 {
+  margin: 0 0 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #ddd;
+  font-size: 1rem;
+}
+
+.results { display: grid; gap: 8px; }
+
+/* 画面の上に固定する移動ボタン。表をスクロールしても見える。 */
+.view-nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 0 -32px 16px;
+  padding: 10px 32px;
+  background: #fff;
+  border-bottom: 2px solid #1a56a8;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.view-nav[hidden] { display: none; }
+
+.nav-btn {
+  padding: 8px 16px;
+  border: 2px solid #1a56a8;
+  background: #fff;
+  color: #1a56a8;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.nav-btn--primary {
+  padding: 10px 20px;
+  background: #1a56a8;
+  color: #fff;
+  font-size: 1.05rem;
+}
+
+.nav-btn:hover,
+.nav-btn:focus-visible { background: #e8f0fb; }
+.nav-btn--primary:hover,
+.nav-btn--primary:focus-visible { background: #134687; }
+
+.nav-hint { color: #555; font-size: 0.9rem; }
+
+.brand { color: inherit; font-weight: 700; text-decoration: none; }
+.brand:hover { text-decoration: underline; }
+
+.back {
+  display: inline-block;
+  background: #fff;
+  color: #222;
+  text-decoration: none;
+}
+
+.back:hover,
+.back:focus-visible { background: #f3f3f3; }
+
+.law-card {
+  appearance: none;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: start;
+  padding: 10px 12px;
+  border: 1px solid #ccc;
+  background: #fff;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.law-card[hidden] { display: none; }
+
+.law-card:hover,
+.law-card:focus-visible { background: #f3f6fb; }
+
+.law-card.is-repealed { opacity: 0.55; }
+
+.law-card.is-selected,
+.law-card.is-selected:hover {
+  cursor: default;
+  background: #f3f6fb;
+  border-color: #1a56a8;
+}
+
+/* 基準値が取れた法令カードは緑。 */
+.law-card.has-standards {
+  background: #e7f2e8;
+  border-color: #2f6b3a;
+}
+
+.law-card.has-standards:hover,
+.law-card.has-standards:focus-visible { background: #dcecdc; }
+
+.law-card.has-standards.is-selected,
+.law-card.has-standards.is-selected:hover {
+  background: #e7f2e8;
+  border-color: #2f6b3a;
+}
+
+.law-card__title { display: block; font-weight: 700; }
+
+.law-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+  color: #555;
+  font-size: 0.85rem;
+}
+
+.law-card__id { font-size: 0.75rem; color: #777; }
+
+.pill {
+  display: inline-block;
+  padding: 0 6px;
+  border: 1px solid #ccc;
+  background: #f7f7f7;
+  font-size: 0.75rem;
+}
+
+.pill--warn { border-color: #a40000; color: #a40000; }
+.pill--ok { border-color: #2f6b3a; color: #21542c; background: #f3faf4; }
+
+.detail { margin-top: 16px; }
+
+.panel { border: 1px solid #ccc; padding: 16px; }
+.panel--loading { min-height: 120px; }
+
+.progress-kicker { margin: 0; color: #555; font-size: 0.85rem; }
+.progress-title { margin: 4px 0 10px; font-size: 1.2rem; }
+.empty-lead { font-weight: 700; }
+
+.detail-head h2 { margin: 0 0 6px; font-size: 1.25rem; }
+.detail-meta,
+.notes,
+.progress { color: #555; }
+
+.era { margin-top: 24px; }
+.era h3 { margin: 0 0 8px; font-size: 1.05rem; }
+
+.table-wrap { width: 100%; }
+
+.table-scroll {
+  position: relative;
+  overflow-x: auto;
+}
+
+/* 列の境目。ドラッグするとその列の幅が変わる。 */
+.col-resize {
+  position: absolute;
+  z-index: 1;
+  width: 8px;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.col-resize:hover,
+.col-resize:active { background: rgba(26, 86, 168, 0.28); }
+
+table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+th, td {
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  vertical-align: top;
+  text-align: left;
+}
+
+th { background: #f3f3f3; }
+
+table.matrix { font-size: 0.85rem; }
+
+/* 1つ前の収録版と違う項目名と基準のセルは、薄い黄色。 */
+td.is-changed { background: #fff3c4; }
+
+/* 変更前の文言は、そのセルの中に赤いかっこで書く。 */
+.change-from { color: #c40000; }
+
+/* 廃止された行は打ち消し線。 */
+tr.is-removed td { color: #777; text-decoration: line-through; }
+
+.era-note {
+  margin: 8px 0 0;
+  color: #555;
+  font-size: 0.9rem;
+}
+
+/* ---------------------------------------------- 主要基準一覧（最初の画面） */
+
+.summary { margin: 0 0 28px; }
+.summary[hidden] { display: none; }
+
+.summary__heading { margin: 0 0 4px; font-size: 1.15rem; }
+.summary__lead { margin: 0 0 12px; color: #555; font-size: 0.95rem; }
+
+/* 表の枠はウィンドウの高さに合わせる。中で縦横にスクロールする。 */
+.summary .table-scroll {
+  max-height: 75vh;
+  max-height: calc(100dvh - 96px);
+  min-height: 240px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid #ccc;
+}
+
+/* 列が多いので、幅は中身に合わせる。見出しと物質名は固定して、横・縦にスクロールしても見える。 */
+table.summary-table {
+  width: max-content;
+  min-width: 100%;
+  table-layout: auto;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.85rem;
+}
+
+.summary-table th,
+.summary-table td {
+  border-width: 0 1px 1px 0;
+  white-space: nowrap;
+}
+
+.summary-table td .long { display: inline-block; width: 13em; white-space: normal; }
+
+/* 列幅を決めたあと（is-fixed）は、幅の中で折り返す。 */
+.summary-table.is-fixed { table-layout: fixed; min-width: 0; }
+.summary-table.is-fixed th,
+.summary-table.is-fixed td { white-space: normal; overflow-wrap: anywhere; }
+.summary-table.is-fixed td .long { display: inline; width: auto; }
+.summary-table.is-fixed .col-name { min-width: 0; }
+.summary-table.is-fixed thead th { min-width: 0; }
+
+/* 見出しの右端をドラッグすると、その列の幅が変わる。ダブルクリックで元の幅。 */
+.col-grip {
+  position: absolute;
+  top: 0;
+  right: -5px;
+  z-index: 4;
+  width: 10px;
+  height: 100%;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.col-grip:hover,
+.col-grip.is-active { background: rgba(26, 86, 168, 0.28); }
+
+.summary__tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 8px; }
+.summary__tools .summary__lead { margin: 0; flex: 1 1 24em; }
+
+/* ダウンロードは青い枠のボタン。 */
+.download-btn {
+  padding: 6px 14px;
+  border: 2px solid #1a56a8;
+  background: #fff;
+  color: #1a56a8;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.download-btn:hover,
+.download-btn:focus-visible { background: #e8f0fb; }
+.download-btn:disabled { opacity: 0.6; cursor: progress; }
+
+.detail-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 8px 0 0; }
+.detail-tools span { color: #555; font-size: 0.85rem; }
+.detail-tools .detail-tools__label { color: #222; font-weight: 700; font-size: 0.9rem; }
+
+.summary__reset {
+  padding: 4px 10px;
+  border: 1px solid #888;
+  background: #fff;
+  color: #1a56a8;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.summary-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  white-space: normal;
+  min-width: 6.5em;
+  vertical-align: bottom;
+}
+
+.summary-table th .unit { display: block; color: #666; font-weight: 400; font-size: 0.8rem; }
+
+.summary-table .col-name {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: #fff;
+  min-width: 11em;
+  white-space: normal;
+  font-weight: 700;
+}
+
+.summary-table thead .col-name { z-index: 3; background: #f3f3f3; }
+
+.summary-table tr.group-row th span { position: sticky; left: 8px; }
+
+.summary-table tr.group-row th {
+  background: #eef3fa;
+  text-align: left;
+  font-size: 0.85rem;
+}
+
+.summary-table td.is-empty { color: #999; text-align: center; }
+.summary-table td.is-missing { color: #a40000; }
+.summary-table .note-mark { color: #1a56a8; font-weight: 700; margin-left: 2px; cursor: help; }
+
+.summary__notes,
+.summary__sources {
+  margin: 12px 0 0;
+  padding-left: 1.5em;
+  color: #333;
+  font-size: 0.85rem;
+}
+
+.summary__notes li,
+.summary__sources li { margin-bottom: 2px; }
+
+.summary__sub { margin: 16px 0 4px; font-size: 0.95rem; }
+
+.summary__sources button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #1a56a8;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.summary__alerts { margin: 0 0 12px; padding: 0; list-style: none; }
+.summary__alerts li { margin-bottom: 4px; }
+.summary__alerts .is-error { color: #a40000; }
+
+/* 指でさわる画面は、つまみを太くする。 */
+@media (pointer: coarse) {
+  .hover-only { display: none; }
+  .col-grip { right: -9px; width: 18px; }
+  .col-resize { width: 16px; }
+}
+
+@media (min-width: 1600px) {
+  table.summary-table { font-size: 0.9rem; }
+}
+
+@media (max-width: 720px) {
+  .top { padding: 10px 16px; }
+  .view-nav { flex-wrap: nowrap; margin: 0 -16px 12px; padding: 8px 16px; }
+  .nav-btn { padding: 8px 10px; font-size: 0.9rem; white-space: nowrap; }
+  .nav-btn--primary { flex: 1 1 auto; font-size: 1rem; }
+  .nav-hint { display: none; }
+  h1 { font-size: 1.25rem; margin-bottom: 12px; }
+  .search input { min-width: 0; }
+  .summary__lead { font-size: 0.85rem; }
+  table.summary-table { font-size: 0.8rem; }
+  .summary-table th,
+  .summary-table td { padding: 4px 6px; }
+  .summary-table thead th { min-width: 5em; }
+  .summary-table .col-name { min-width: 7em; }
+  .summary-table td .long { width: 10em; }
+  .summary .table-scroll { max-height: calc(100dvh - 72px); }
+  /* 法令ごとの表は、列が潰れないよう最小幅を持たせて横にスクロールする。 */
+  #detail table { min-width: 640px; }
+  .law-card { grid-template-columns: 1fr; }
+  .law-card__id { display: none; }
+}
+
+/* とても狭い画面（幅360px以下）でも、移動ボタンが1行に収まるようにする。 */
+@media (max-width: 360px) {
+  .view-nav { gap: 6px; }
+  .nav-btn { padding: 6px 8px; font-size: 0.82rem; }
+  .nav-btn--primary { font-size: 0.92rem; }
+}

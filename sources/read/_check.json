@@ -1,0 +1,38 @@
+[
+ {
+  "name": "ダイオキシン類環境基準",
+  "url": "https://www.env.go.jp/kijun/dioxin.html",
+  "date": "2026-10-04",
+  "result": "同じ"
+ },
+ {
+  "name": "土壌環境基準",
+  "url": "https://www.env.go.jp/kijun/dt1.html",
+  "date": "2026-10-04",
+  "result": "同じ"
+ },
+ {
+  "name": "地下水環境基準",
+  "url": "https://www.env.go.jp/content/000344565.pdf",
+  "date": "2026-10-04",
+  "result": "同じ"
+ },
+ {
+  "name": "地下浸透基準",
+  "url": "https://www.env.go.jp/hourei/add/e025.pdf",
+  "date": "2026-10-04",
+  "result": "同じ"
+ },
+ {
+  "name": "地下浸透基準（令和6年改正）",
+  "url": "https://www.env.go.jp/content/000194628.pdf",
+  "date": "2026-10-04",
+  "result": "同じ"
+ },
+ {
+  "name": "水質環境基準",
+  "url": "https://www.env.go.jp/content/000344419.pdf",
+  "date": "2026-10-04",
+  "result": "同じ"
+ }
+]

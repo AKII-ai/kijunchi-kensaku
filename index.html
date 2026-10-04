@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>基準値検索ver1.0</title>
+  </head>
+  <body>
+    <header class="top">
+      <a href="./" class="brand" data-home title="主要基準一覧に戻る">基準値検索ver1.0</a>
+      <span>出典: e-Gov 法令API・環境省（告示）</span>
+    </header>
+    <main class="wrap">
+      <h1>基準値検索ver1.0</h1>
+      <form id="search-form" class="search" role="search">
+        <label for="q">検索</label>
+        <input id="q" name="q" type="search" autocomplete="off" placeholder="大気、土壌、地下水" />
+        <button type="submit">検索</button>
+      </form>
+      <p class="hints" id="hints">
+        例:
+        <button type="button" data-q="大気">大気</button>
+        <button type="button" data-q="土壌">土壌</button>
+        <button type="button" data-q="地下水">地下水</button>
+      </p>
+      <p id="status" class="status">下の主要基準一覧を見るか、「よく使うもの」から選ぶか、上で検索してください。</p>
+      <nav id="view-nav" class="view-nav" aria-label="画面の移動" hidden></nav>
+      <section id="summary" class="summary" aria-labelledby="summary-heading"></section>
+      <div id="featured" class="featured"></div>
+      <div id="results" class="results" aria-live="polite" hidden></div>
+      <div id="detail" class="detail" hidden></div>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
