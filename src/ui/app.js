@@ -9,7 +9,7 @@ import { getLayout } from "../extract/layout.js";
 import { buildMatrixEras } from "../extract/matrix.js";
 import { buildSummary, CHECKS } from "../summary/summary.js";
 import { downloadLaw, downloadSummary } from "../export/download.js";
-import { READING_NOTES } from "../summary/markdown.js";
+import { LEGEND, basisNotes } from "../summary/markdown.js";
 import { FEATURED } from "./featured.js";
 
 const els = {
@@ -226,6 +226,17 @@ function loadSummary() {
   return summaryLoad;
 }
 
+function urlLink(url) {
+  return `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(url)}</a>`;
+}
+
+/** 参照先の URL を最後の確認で開けなかったときの印。値は前回保存したページのもの。 */
+function deadMark(info) {
+  if (!info) return "";
+  const title = `参照先を開けませんでした（${info.date} 確認）。値は前回保存したページのものです。${info.url}`;
+  return ` <span class="dead-link" title="${esc(title)}">参照不可</span>`;
+}
+
 function summaryCell(cell, noteNo) {
   if (cell.failed) return `<td class="is-missing">取得できず</td>`;
   if (cell.missing) {
@@ -236,14 +247,29 @@ function summaryCell(cell, noteNo) {
   const from = cell.item ? `${cell.from}「${cell.item}」` : cell.from;
   const mark = noteNo ? `<span class="note-mark" title="${esc(cell.note)}">※${noteNo}</span>` : "";
   // 要監視・目標など、列の本来の基準でない値は色を変える。
-  return `<td${cell.supplement ? ' class="is-supplement"' : ""} title="${esc(from)}">${text}${mark}</td>`;
+  return `<td${cell.supplement ? ' class="is-supplement"' : ""} title="${esc(from)}">${text}${mark}${deadMark(cell.unreachable)}</td>`;
+}
+
+/** 根拠のリンク。法令は e-Gov のほかに、アプリでその法令の表を開くボタンも付ける。 */
+function renderLinks(links) {
+  return links.map((l) => {
+    const law = l.url.match(/^https:\/\/laws\.e-gov\.go\.jp\/law\/([0-9A-Z]+)$/);
+    const open = law
+      ? ` <button type="button" class="link-btn" data-law-id="${esc(law[1])}" data-title="${esc(l.name)}">アプリで表を見る</button>` : "";
+    const dead = l.unreachable ? ` <span class="dead-link">${esc(l.unreachable.date)} に開けず</span>` : "";
+    return ` <a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.url)}</a>${l.date ? `（${esc(l.date)}）` : ""}${dead}${open}`;
+  }).join("");
 }
 
 function renderSummary(summary) {
   lastSummary = summary;
-  const { columns, rows, laws, sources, problems, labels = [] } = summary;
-  const colNotes = columns.filter((c) => c.note);
-  const colNoteNo = new Map(colNotes.map((c, i) => [c.name, i + 1]));
+  const { columns, rows, problems } = summary;
+  const basis = basisNotes(summary);
+  const noteMark = (no, title) => (no ? `<sup class="col-note" title="${esc(title)}">注${no}</sup>` : "");
+  const basisTitle = (no) => {
+    const it = basis.items[no - 1];
+    return it ? [it.text, ...it.links.map((l) => l.url)].filter(Boolean).join(" ") : "";
+  };
   const notes = [];
   let group = "";
   const body = rows.map((r) => {
@@ -256,15 +282,19 @@ function renderSummary(summary) {
       notes.push({ row: r.name, column: columns[i].name, text: cell.note });
       return summaryCell(cell, notes.length);
     });
-    return `${head}<tr><th class="col-name" scope="row">${esc(r.name)}</th>${cells.join("")}</tr>`;
+    const rowNo = basis.rowNo.get(r.name);
+    return `${head}<tr><th class="col-name" scope="row">${esc(r.name)}${noteMark(rowNo, basisTitle(rowNo))}${
+      deadMark(r.unreachable)}</th>${cells.join("")}</tr>`;
   }).join("");
 
   // 出典の確認結果（python tools/sources.py check）。「同じ」は出さない。
   const alerts = [
     ...CHECKS.filter((c) => c.result === "開けない").map((c) => `<li class="is-error">${
-      esc(c.name)}: ${esc(c.url)} を開けませんでした（${esc(c.date)}）。</li>`),
+      esc(c.name)}: ${urlLink(c.url)} を開けませんでした（${esc(c.date)}）。</li>`),
     ...CHECKS.filter((c) => c.result === "更新あり").map((c) => `<li>${
       esc(c.name)}: 前回保存したページと違います（${esc(c.date)}）。</li>`),
+    ...CHECKS.filter((c) => c.moved_from).map((c) => `<li>${
+      esc(c.name)}: 参照先の URL が移っていたので、新しい URL ${urlLink(c.url)} にしました（${esc(c.date)}）。</li>`),
     ...problems.filter((p) => p.kind === "law").map((p) => `<li class="is-error">${
       esc(p.title)}（${esc(p.id)}）を e-Gov 法令API から取得できませんでした。</li>`),
   ];
@@ -285,30 +315,22 @@ function renderSummary(summary) {
         ${colGroup(columns.length + 1)}
         <thead><tr>
           <th class="col-name">物質名</th>
-          ${columns.map((c) => `<th>${esc(c.name)}${colNoteNo.has(c.name)
-    ? `<sup class="col-note" title="${esc(c.note)}">注${colNoteNo.get(c.name)}</sup>` : ""}<span class="unit">${esc(c.unit)}</span></th>`).join("")}
+          ${columns.map((c) => `<th>${esc(c.name)}${noteMark(basis.colNo.get(c.name), basisTitle(basis.colNo.get(c.name)))}<span class="unit">${
+    esc(c.unit)}</span>${deadMark(c.unreachable)}</th>`).join("")}
         </tr></thead>
         <tbody>${body}</tbody>
       </table>
     </div></div>
-    ${colNotes.length ? `
-      <h3 class="summary__sub">列の注記</h3>
-      <ol class="summary__notes summary__notes--plain">${colNotes.map((c, i) => `<li>注${i + 1} ${esc(c.name)}: ${esc(c.note)}</li>`).join("")}</ol>` : ""}
-    ${labels.length ? `
-      <h3 class="summary__sub">頭に語が付いた値</h3>
-      <ul class="summary__notes summary__notes--plain">${labels.map((l) => `<li><span class="is-supplement">${esc(l.label)}</span>: ${esc(l.meaning)}</li>`).join("")}</ul>` : ""}
+    <h3 class="summary__sub">根拠と注</h3>
+    <ul class="summary__notes summary__notes--plain">
+      ${basis.items.map((it) => `<li><b>注${it.no}</b> ${esc(it.title)}: ${esc(it.text)}${renderLinks(it.links)}</li>`).join("")}
+      ${basis.labels.map((l) => `<li><span class="is-supplement">${esc(l.label)}</span>: ${esc(l.meaning)}${renderLinks(l.links)}</li>`).join("")}
+    </ul>
     ${notes.length ? `
       <h3 class="summary__sub">※ 条件付きの基準（文言のまま）</h3>
       <ol class="summary__notes">${notes.map((n) => `<li>${esc(n.row)}／${esc(n.column)}: ${esc(n.text)}</li>`).join("")}</ol>` : ""}
-    <h3 class="summary__sub">出典</h3>
-    <ul class="summary__sources">
-      ${laws.map((l) => `<li><button type="button" data-law-id="${esc(l.id)}" data-title="${esc(l.title)}">${
-    esc(l.title)}</button>（e-Gov ${esc(l.id)}、${esc(l.enforcement_date)} 施行の現行版）${l.use ? `… ${esc(l.use)}` : ""}</li>`).join("")}
-      ${sources.map((src) => `<li>${esc(src.name)}（環境省、入手日 ${esc(src.obtained)}）… <a href="${
-    esc(src.url)}" target="_blank" rel="noopener">${esc(src.url)}</a></li>`).join("")}
-    </ul>
-    <h3 class="summary__sub">読み方の注意</h3>
-    <ul class="summary__notes">${READING_NOTES.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>`;
+    <h3 class="summary__sub">表の見方</h3>
+    <ul class="summary__notes">${LEGEND.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>`;
   els.summary.querySelectorAll("[data-law-id]").forEach((btn) => {
     btn.addEventListener("click", () => selectLaw(btn.dataset.lawId, btn.dataset.title));
   });

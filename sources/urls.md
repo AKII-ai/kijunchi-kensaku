@@ -18,3 +18,4 @@
 | 水質管理目標設定項目（農薬類） | https://www.env.go.jp/water/water_supply/suishitsu/06.html | 通知PDF（同じ別添4の別紙2） | 水質管理目標設定項目（農薬類）.md |
 | 地下浸透基準 | https://www.env.go.jp/hourei/add/e025.pdf | PDF の別表（平成元年環境庁告示第39号。平成24年改正までの全文） | 地下浸透基準.md |
 | 地下浸透基準（令和6年改正） | https://www.env.go.jp/content/000194628.pdf | 通知PDF（令和6年改正の概要） | 地下浸透基準（令和6年改正）.md |
+| 水道水質基準の改正の概要 | https://www.env.go.jp/content/000334172.pdf | 通知PDF（PFOS・PFOA が合算の値であることの根拠。値は読まない） | 水道水質基準の改正の概要.md |

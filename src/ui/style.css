@@ -431,6 +431,30 @@ table.summary-table {
 .summary-table td.is-supplement { background: #fbf7ec; }
 .summary-table .col-note { margin-left: 2px; color: #1a56a8; font-weight: 700; cursor: help; }
 .summary__notes--plain { list-style: none; padding-left: 0; }
+.summary__notes--plain li { margin-bottom: 6px; }
+.summary__notes a { word-break: break-all; }
+/* 参照先の URL を開けなかった印。表の中では小さく、詳しくはカーソルを合わせると出る。 */
+.dead-link {
+  display: inline-block;
+  padding: 0 4px;
+  border: 1px solid #a40000;
+  color: #a40000;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.link-btn {
+  padding: 0 6px;
+  border: 1px solid #1a56a8;
+  background: #fff;
+  color: #1a56a8;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
 
 .summary__notes,
 .summary__sources {

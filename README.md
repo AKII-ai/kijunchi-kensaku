@@ -36,7 +36,7 @@ npm run dev
   - 開いた法令: Excel 1冊（施行期間ごとのシート。新しい期間が最初）と、施行期間ごとの Markdown（`markdown/01_施行…_現行.md` から古い順）。
     「変更コメントあり」と「コメントなし」を選べます。コメントありは、変わったセルを Excel では薄い黄色と赤いかっこ書き、
     Markdown では太字とかっこ書きにし、その期間に無くなった行を打ち消し線で残します。コメントなしは印を付けず、その期間の基準値だけです。
-  - 主要基準一覧: Excel（一覧と「注記と出典」の2シート）と Markdown 1つ。Markdown は `npm run summary` と同じ書き方です。
+  - 主要基準一覧: Excel（一覧と「根拠と注」の2シート）と Markdown 1つ。Markdown は `npm run summary` と同じ書き方です。
   - Excel を作る exceljs は大きいので、ボタンを押したときだけ読み込みます。
 
 条文からの抜き出しは4種類です（`src/extract/extract.js`）。

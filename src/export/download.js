@@ -8,7 +8,7 @@
  */
 
 import {
-  LEGEND, READING_NOTES, checkAlerts, columnNotes, describeProblem, lawLine, numberCells, renderSummaryMarkdown, sourceLine, today,
+  LEGEND, basisNotes, checkAlerts, columnHeader, describeProblem, footnoteLines, numberCells, renderSummaryMarkdown, rowName, today,
 } from "../summary/markdown.js";
 import { eraLabel, eraTable, safeName, withoutChanges } from "./tables.js";
 
@@ -167,25 +167,25 @@ export async function downloadLaw(detail, { annotate = true } = {}) {
 
 export async function downloadSummary(summary, checks) {
   const { ExcelJS, zipSync, strToU8 } = await loadLibs();
-  const { columns, laws, sources, problems, labels = [] } = summary;
+  const { columns, problems } = summary;
   const { table, notes } = numberCells(summary);
-  const colNotes = columnNotes(columns);
+  const basis = basisNotes(summary);
+  const foot = footnoteLines(basis);
   const wb = new ExcelJS.Workbook();
   wb.created = new Date();
 
   const sheet = wb.addWorksheet("主要基準一覧");
   sheet.addRow(["主要基準一覧"]).font = { bold: true, size: 13 };
-  sheet.addRow([`ダウンロード日 ${today()}。法令は e-Gov 法令API の現行版、告示は環境省のページを保存したものから読んでいます。`]);
-  for (const line of LEGEND) sheet.addRow([line]);
+  sheet.addRow([`ダウンロード日 ${today()}。根拠（注n）と条件付きの基準（※n）は「根拠と注」のシート。`]);
   for (const a of checkAlerts(checks)) sheet.addRow([a]).font = { color: { argb: COLOR.missing } };
   for (const p of problems) sheet.addRow([describeProblem(p)]).font = { color: { argb: COLOR.missing } };
   sheet.addRow([]);
-  const headers = ["分類", "物質名", ...columns.map(colNotes.header)];
+  const headers = ["分類", "物質名", ...columns.map((c) => columnHeader(c, basis))];
   const headerRow = sheet.addRow(headers);
   styleHeader(headerRow);
   const headerAt = headerRow.number;
   for (const r of table) {
-    const row = sheet.addRow([r.group, r.name, ...r.cells.map((c) => (c.note ? `${c.text} ※${c.note}` : c.text))]);
+    const row = sheet.addRow([r.group, rowName(r.name, basis, r.unreachable), ...r.cells.map((c) => (c.note ? `${c.text} ※${c.note}` : c.text))]);
     row.eachCell({ includeEmpty: true }, (cell, col) => {
       cell.border = BORDER;
       cell.alignment = { vertical: "top", wrapText: true };
@@ -198,6 +198,8 @@ export async function downloadSummary(summary, checks) {
         cell.alignment = { vertical: "top", horizontal: "center" };
       } else if (c?.kind === "missing") {
         cell.font = { color: { argb: COLOR.missing } };
+      } else if (c?.unreachable) {
+        cell.font = { color: { argb: COLOR.missing } };
       } else if (c?.kind === "supplement") {
         cell.font = { color: { argb: COLOR.supplement } };
         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLOR.supplementFill } };
@@ -209,22 +211,16 @@ export async function downloadSummary(summary, checks) {
   columns.forEach((_, i) => { sheet.getColumn(i + 3).width = 14; });
   sheet.views = [{ state: "frozen", xSplit: 2, ySplit: headerAt }];
 
-  const info = wb.addWorksheet("注記と出典");
-  info.getColumn(1).width = 120;
+  const info = wb.addWorksheet("根拠と注");
+  info.getColumn(1).width = 140;
   const heading = (t) => { info.addRow([]); info.addRow([t]).font = { bold: true }; };
-  info.addRow(["列の注記"]).font = { bold: true };
-  colNotes.list.forEach((c, i) => info.addRow([`注${i + 1} ${c.name}: ${c.note}`]));
-  heading("頭に語が付いた値");
-  labels.forEach((l) => info.addRow([`${l.label}: ${l.meaning}`]));
+  info.addRow(["根拠と注"]).font = { bold: true };
+  [...foot.basis, ...foot.labels].forEach((line) => info.addRow([line]));
   heading("※ 条件付きの基準（文言のまま）");
   notes.forEach((n, i) => info.addRow([`※${i + 1} ${n.row}／${n.column}: ${n.text}`]));
   if (!notes.length) info.addRow(["なし"]);
-  heading("出典（法令。e-Gov 法令API）");
-  laws.forEach((l) => info.addRow([lawLine(l)]));
-  heading("出典（告示など。保存したページ）");
-  sources.forEach((s) => info.addRow([sourceLine(s)]));
-  heading("この表に無いもの・読み方の注意");
-  READING_NOTES.forEach((n) => info.addRow([n]));
+  heading("表の見方");
+  LEGEND.forEach((n) => info.addRow([n]));
   info.eachRow((row) => { row.alignment = { wrapText: true, vertical: "top" }; });
 
   const md = renderSummaryMarkdown(summary, checks, {

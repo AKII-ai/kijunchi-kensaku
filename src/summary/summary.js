@@ -26,6 +26,24 @@ export const SOURCES = Object.fromEntries(
 /** python tools/sources.py check の結果。無ければ空。 */
 export const CHECKS = Object.entries(READ).find(([path]) => path.endsWith("/_check.json"))?.[1] || [];
 
+/** 最後の確認で「開けない」だった出典。名前と URL の両方で引けるようにする。 */
+const UNREACHABLE = new Map();
+for (const c of CHECKS) {
+  if (c.result !== "開けない") continue;
+  const info = { url: c.url, date: c.date, reason: c.reason || "" };
+  UNREACHABLE.set(c.name, info);
+  if (c.url) UNREACHABLE.set(c.url, info);
+}
+
+const URL_IN_TEXT = /https?:\/\/[^\s）)、。]+/g;
+
+/** 注記の文に書いた URL を取り出す（リンクにするため）。文からは URL を外す。 */
+function splitUrls(text) {
+  const urls = String(text || "").match(URL_IN_TEXT) || [];
+  const rest = String(text || "").replace(URL_IN_TEXT, "").replace(/\s+$/, "").replace(/\s{2,}/g, " ");
+  return { text: rest, urls };
+}
+
 const LAW_ID = /^[0-9]{3}[A-Z]{1,2}[0-9A-Z]+$/;
 
 // ---------------------------------------------------------------- 指定の読み方
@@ -55,6 +73,7 @@ export function parseColumns(text) {
       sources: list(row[at(cols, "出典")]),
       tables: tables.map((t) => t.name),
       tableLabels: Object.fromEntries(tables.filter((t) => t.label).map((t) => [t.name, t.label])),
+      basis: at(cols, "根拠") >= 0 ? row[at(cols, "根拠")] || "" : "",
       note: at(cols, "注記") >= 0 ? row[at(cols, "注記")] || "" : "",
     };
   }).filter((c) => c.name);
@@ -84,7 +103,8 @@ export function parseRows(text, columns) {
         const i = t.header.indexOf(c.name);
         return i < 0 ? "" : (r[i] || "").trim();
       });
-      rows.push({ group: sec.title, name: r[nameAt], refs });
+      const noteAt = t.header.indexOf("注記");
+      rows.push({ group: sec.title, name: r[nameAt], refs, note: noteAt >= 0 ? (r[noteAt] || "").trim() : "" });
     }
   }
   return rows;
@@ -231,6 +251,7 @@ export async function buildSummary({ fetchLaw = fetchLawData, onProgress } = {})
   const rows = specRows.map((r) => ({
     group: r.group,
     name: r.name,
+    note: r.note,
     cells: columns.map((c, i) => {
       const ref = r.refs[i];
       if (!ref) return { text: "", note: "", from: "", item: "", missing: false, failed: false };
@@ -271,10 +292,67 @@ export async function buildSummary({ fetchLaw = fetchLawData, onProgress } = {})
 
   // 出典欄は列の順に並べる（取得が終わった順にしない）。
   const lawOrder = [...laws.values()].sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
-  // 表に出てくる「頭に付ける語」と、その意味（表の下に出す）。
-  const usedLabels = [...new Set(rows.flatMap((r) => r.cells.map((c) => c.from)))]
-    .filter((s) => sourceLabels[s]?.label)
-    .map((s) => ({ source: s, ...sourceLabels[s] }));
-  const labels = [...new Map(usedLabels.map((l) => [l.label, l])).values()];
+  // 根拠のリンク。法令は e-Gov 法令検索の URL と施行日、告示などは保存したページの URL と入手日。
+  const linkOf = (name) => {
+    if (LAW_ID.test(name)) {
+      const law = laws.get(name);
+      return {
+        name: law?.title || lawTitles[name]?.title || name,
+        url: `https://laws.e-gov.go.jp/law/${name}`,
+        date: law?.enforcement_date ? `${law.enforcement_date} 施行の現行版` : "",
+      };
+    }
+    const src = SOURCES[name];
+    return { name, url: src?.url || "", date: src?.obtained ? `${src.obtained} 入手` : "" };
+  };
+  // 同じ URL（1つの PDF から複数の表を読む出典など）は1つにする。
+  const uniqueLinks = (names) => {
+    const seen = new Set();
+    return [...new Set(names.filter(Boolean))].map(linkOf)
+      .filter((l) => l.url && !seen.has(l.url) && seen.add(l.url));
+  };
+  // 注記の文に書いた URL は、保存した出典の URL なら入手日を付けてリンクにする。
+  const urlLink = (url) => {
+    const src = Object.values(SOURCES).find((x) => x.url === url);
+    return { name: src?.name || "", url, date: src?.obtained ? `${src.obtained} 入手` : "" };
+  };
+  const withTextUrls = (links, text) => {
+    const { text: rest, urls } = splitUrls(text);
+    const seen = new Set(links.map((l) => l.url));
+    return { text: rest, links: [...links, ...urls.filter((u) => !seen.has(u) && seen.add(u)).map(urlLink)] };
+  };
+  const markDead = (links) => links.map((l) => (UNREACHABLE.has(l.url) ? { ...l, unreachable: UNREACHABLE.get(l.url) } : l));
+  for (const c of columns) {
+    const t = withTextUrls(uniqueLinks(c.sources), c.note);
+    c.note = t.text;
+    c.links = markDead(t.links);
+    // 列の出典の URL が開けないときは、列見出しに1つだけ出す（セルごとには出さない）。
+    c.unreachable = c.sources.map((x) => UNREACHABLE.get(x)).find(Boolean) || null;
+  }
+  // 行の中で、列の出典とも「補う出典」とも違う出典から取ったセル（ダイオキシン類など）は、その行の根拠に足す。
+  for (const r of rows) {
+    const t = withTextUrls(uniqueLinks(r.cells.map((cell, i) => (
+      cell.from && !columns[i].sources.includes(cell.from) && !sourceLabels[cell.from] ? cell.from : ""))), r.note);
+    r.note = t.text;
+    r.links = markDead(t.links);
+    // 行の注だけにある根拠（改正の概要など）が開けないときは、物質名のところに出す。
+    r.unreachable = r.links.find((l) => l.unreachable)?.unreachable || null;
+    // 列の出典と別の出典（要監視・目標・ダイオキシン類など）から取った値で、その URL が開けないときだけセルに出す。
+    r.cells.forEach((cell, i) => {
+      if (cell.from && !columns[i].sources.includes(cell.from) && UNREACHABLE.has(cell.from)) {
+        cell.unreachable = UNREACHABLE.get(cell.from);
+      }
+    });
+  }
+
+  // 表に出てくる「頭に付ける語」と、その意味と根拠（同じ語の出典はまとめる）。
+  const labelMap = new Map();
+  for (const from of new Set(rows.flatMap((r) => r.cells.map((c) => c.from)))) {
+    const def = sourceLabels[from];
+    if (!def?.label) continue;
+    if (!labelMap.has(def.label)) labelMap.set(def.label, { label: def.label, meaning: def.meaning, sources: [] });
+    labelMap.get(def.label).sources.push(from);
+  }
+  const labels = [...labelMap.values()].map((l) => ({ ...l, links: markDead(uniqueLinks(l.sources)) }));
   return { columns, rows, laws: lawOrder, sources: usedSources, labels, problems };
 }

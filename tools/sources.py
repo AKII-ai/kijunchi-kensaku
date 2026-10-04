@@ -1,7 +1,7 @@
 """API に無い出典（sources/saved/ に保存したページ）を読む道具。
 
   python tools/sources.py read    保存したページから項目と文言を抜き、sources/read/{名前}.json に書く
-  python tools/sources.py check   URL を開き、前回保存したページと比べる（docs/出典を足す.md「更新の確かめ方」）
+  python tools/sources.py check   URL を開き、前回保存したページと比べる。移転・更新があれば反映して読み直す（docs/出典を足す.md「更新の確かめ方」）
 
 正本は保存したページ。sources/read/ の JSON は、このスクリプトが毎回作り直す写しで、手で直さない。
 どの出典をどう読むかは、sources/notes/{名前}.md の次の行で決める（数値はメモに書かない）。
@@ -274,6 +274,23 @@ def cmd_read() -> int:
         out = READ / f"{note['名前']}.json"
         out.write_text(json.dumps(data, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
         print(f"読んだ {note['名前']}: {len(data['rows'])}行 → {out.relative_to(ROOT).as_posix()}")
+    # 値は読まず根拠としてだけ使う出典（「読み方」が無いメモ）も、名前・URL・日付を書いておく（注の URL に入手日を付けるため）。
+    readable = {n["名前"] for n in readable_notes()}
+    for note in check_notes():
+        if note["名前"] in readable:
+            continue
+        files = note["files"]
+        meta = {
+            "name": note["名前"],
+            "url": note.get("URL", ""),
+            "obtained": note.get("入手日", ""),
+            "checked": note.get("前回確認日", ""),
+            "file": files[0].relative_to(ROOT).as_posix() if files else "",
+            "rows": [],
+        }
+        out = READ / f"{note['名前']}.json"
+        out.write_text(json.dumps(meta, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+        print(f"控え   {note['名前']}: 根拠のみ（値は読まない） → {out.relative_to(ROOT).as_posix()}")
     return 0 if ok else 1
 
 
@@ -293,13 +310,15 @@ def body_of(data: bytes, suffix: str) -> str:
     return clean(re.sub(r"<.*?>", "", text))
 
 
-def fetch(url: str) -> bytes:
+def fetch(url: str) -> tuple[bytes, str]:
+    """中身と、転送（リダイレクト）をたどったあとの URL。"""
     req = urllib.request.Request(url, headers={"User-Agent": "kijunchi-app source check"})
     with urllib.request.urlopen(req, timeout=30) as res:
         data = res.read()
+        final = res.geturl()
     if not data.strip():
         raise ValueError("中身が空")
-    return data
+    return data, final
 
 
 def set_field(path: Path, field: str, value: str) -> None:
@@ -311,21 +330,48 @@ def set_field(path: Path, field: str, value: str) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def replace_url_everywhere(old: str, new: str) -> None:
+    """URL が移ったとき、台帳・メモ・主要基準一覧の指定に書いた古い URL を新しい URL にする。"""
+    targets = [ROOT / "sources" / "urls.md", *NOTES.glob("*.md"), ROOT / "src" / "summary" / "rows.md",
+               ROOT / "src" / "summary" / "columns.md"]
+    for path in targets:
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8")
+        if old in text:
+            path.write_text(text.replace(old, new), encoding="utf-8")
+
+
+def check_notes() -> list[dict]:
+    """URL が書いてあるメモすべて（読み取りに使わない根拠用の出典も含む）。"""
+    return [n for n in (read_note(p) for p in sorted(NOTES.glob("*.md")) if p.name != "README.md") if n.get("URL")]
+
+
 def cmd_check() -> int:
-    """結果は sources/read/_check.json。画面は「更新あり」「開けない」だけを出す。"""
+    """URL を開いて前回保存したページと比べる。結果は sources/read/_check.json（画面は「開けない」「更新あり」「移転」を出す）。
+
+    - 開けない … 入手日も前回確認日も変えない。
+    - 移転     … 転送先の URL を新しい URL として、台帳・メモ・指定の URL を書き換える（中身の比べ方は下と同じ）。
+    - 更新あり … 新しいページを保存し、入手日と前回確認日をその日にする。古いファイルは消さない。
+    - 同じ     … 前回確認日だけをその日にする。
+    更新・移転があった出典は、続けて読み直す（sources/read/*.json を作り直す）。
+    """
     today = dt.date.today().isoformat()
     results = []
-    for note in readable_notes():
+    for note in check_notes():
         url = note.get("URL", "")
         saved = note["files"][0] if note["files"] else None
         entry = {"name": note["名前"], "url": url, "date": today}
         try:
-            data = fetch(url)
+            data, final = fetch(url)
+            if final and final != url:
+                replace_url_everywhere(url, final)
+                entry["moved_from"] = url
+                entry["url"] = final
             if saved and saved.exists() and body_of(data, saved.suffix) == body_of(saved.read_bytes(), saved.suffix):
-                entry["result"] = "同じ"
+                entry["result"] = "移転" if entry.get("moved_from") else "同じ"
                 set_field(note["path"], "前回確認日", today)
             else:
-                # 新しいページを保存し、入手日と前回確認日をその日にする。古いファイルは消さない。
                 stem = re.sub(r"_\d{4}-\d{2}-\d{2}$", "", saved.stem) if saved else note["名前"]
                 new = SAVED / f"{stem}_{today}{saved.suffix if saved else '.html'}"
                 new.write_bytes(data)
@@ -341,10 +387,15 @@ def cmd_check() -> int:
             entry["result"] = "開けない"
             entry["reason"] = str(e)
         results.append(entry)
-        print(f"{entry['result']:<4} {note['名前']}  {url}")
+        moved = f"  → {entry['url']}" if entry.get("moved_from") else ""
+        print(f"{entry['result']:<4} {note['名前']}  {url}{moved}")
     READ.mkdir(parents=True, exist_ok=True)
     (READ / "_check.json").write_text(json.dumps(results, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-    print("読み直すときは: python tools/sources.py read")
+    changed = [e["name"] for e in results if e["result"] in ("更新あり", "移転")]
+    if changed:
+        print(f"更新・移転があった出典を読み直します: {'、'.join(changed)}")
+        cmd_read()
+        print("主要基準一覧の Markdown も作り直すときは: npm run summary")
     return 0
 
 
