@@ -56,7 +56,7 @@ npm run dev
 PDF の表を読むのに Python と PyMuPDF（`pip install pymupdf`）を使います。
 
 ```
-npm run sources:check   URL を開き、保存したページと比べる（同じ／更新あり／開けない）
+npm run sources:check   URL を開き、保存したページと比べる（同じ／更新あり／移転／開けない）。GitHub でも毎週月曜に自動で流れる
 npm run sources:read    保存したページから項目と文言を読み、sources/read/*.json を作り直す
 npm run summary         docs/主要基準一覧.md を作り直す（npm run summary -- 書き出し先.md で場所を変えられる）
 ```

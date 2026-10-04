@@ -6,10 +6,17 @@
 // npm run summary（Node で実行）は CORS が無いので、開発中でも API へ直接行く。
 const API_BASE = import.meta.env?.DEV && !import.meta.env?.SSR ? "/egov" : "https://laws.e-gov.go.jp/api/2";
 
+// 「最新に更新」のときは、ブラウザの保存（キャッシュ）を使わず API から取り直す。
+let bypassCache = false;
+export function setBypassCache(on) {
+  bypassCache = Boolean(on);
+}
+
 async function apiGet(path, params = {}) {
   const q = new URLSearchParams({ response_format: "json", ...params });
   const res = await fetch(`${API_BASE}/${path}?${q}`, {
     headers: { Accept: "application/json" },
+    cache: bypassCache ? "no-store" : "default",
   });
   if (!res.ok) throw new Error(`e-Gov API ${res.status}: ${path}`);
   return res.json();

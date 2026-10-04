@@ -37,6 +37,7 @@ ROOT = Path(__file__).resolve().parent.parent
 NOTES = ROOT / "sources" / "notes"
 SAVED = ROOT / "sources" / "saved"
 READ = ROOT / "sources" / "read"
+PREVIOUS = READ / "_previous"  # 「更新あり」のとき、読み直す前の読み取り結果を残す
 
 FIELD = re.compile(r"^-\s*(URL|入手日|前回確認日|保存したファイル|読み方|使う表|項目名の列|基準の文言の列|使う見出し|次の見出し)\s*[:：]\s*(.*)$")
 NTH = re.compile(r"([0-9０-９]+)\s*(番目|列目)")
@@ -391,12 +392,35 @@ def cmd_check() -> int:
         print(f"{entry['result']:<4} {note['名前']}  {url}{moved}")
     READ.mkdir(parents=True, exist_ok=True)
     (READ / "_check.json").write_text(json.dumps(results, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-    changed = [e["name"] for e in results if e["result"] in ("更新あり", "移転")]
-    if changed:
-        print(f"更新・移転があった出典を読み直します: {'、'.join(changed)}")
-        cmd_read()
-        print("主要基準一覧の Markdown も作り直すときは: npm run summary")
-    return 0
+    changed = [e for e in results if e["result"] == "更新あり" or e.get("moved_from")]
+    if not changed:
+        return 0
+    # 画面で「更新」「URL変更」を出すため、読み直す前の読み取り結果を残し、変更の記録に足す。
+    log = load_changes()
+    for e in changed:
+        record = {"date": today, "name": e["name"]}
+        if e.get("moved_from"):
+            log.append({**record, "kind": "移転", "from_url": e["moved_from"], "to_url": e["url"]})
+        if e["result"] == "更新あり":
+            current = READ / f"{e['name']}.json"
+            if current.exists():
+                PREVIOUS.mkdir(parents=True, exist_ok=True)
+                kept = PREVIOUS / f"{e['name']}_{today}.json"
+                kept.write_text(current.read_text(encoding="utf-8"), encoding="utf-8")
+                record["previous"] = kept.relative_to(ROOT).as_posix()
+            log.append({**record, "kind": "更新"})
+    (READ / "_changes.json").write_text(json.dumps(log, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    print(f"更新・移転があった出典を読み直します: {'、'.join(e['name'] for e in changed)}")
+    status = cmd_read()
+    print("主要基準一覧の Markdown も作り直すときは: npm run summary")
+    # 読み直しに失敗したら 1 を返す（自動の公開は止める）。
+    return status
+
+
+def load_changes() -> list[dict]:
+    """これまでの「更新」「移転」の記録（sources/read/_changes.json）。古い記録も消さない。"""
+    path = READ / "_changes.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
 
 
 if __name__ == "__main__":

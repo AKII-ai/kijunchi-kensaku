@@ -1,0 +1,58 @@
+name: Check sources weekly
+
+# 告示・通知（環境省のページ）は公開サイトのブラウザから直接読めないため、ここで毎週確かめる。
+# 移転・更新があれば保存して読み直し（python tools/sources.py check）、主要基準一覧の Markdown を作り直し、
+# 変わったものをコミットして公開サイトを作り直す。読み直しに失敗したときは止める（公開しない）。
+
+on:
+  schedule:
+    - cron: "0 21 * * 0"  # 毎週月曜 6:00（日本時間）
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: sources-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.commit.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pymupdf
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: 出典を確かめる（移転・更新があれば保存して読み直す）
+        run: python tools/sources.py check
+      - name: 主要基準一覧の Markdown を作り直す
+        run: npm run summary
+      - id: commit
+        name: 変わったものをコミットする
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A sources docs
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git commit -m "出典を確かめる（毎週の自動確認）"
+          git push
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: check
+    if: needs.check.outputs.changed == 'true'
+    uses: ./.github/workflows/pages.yml

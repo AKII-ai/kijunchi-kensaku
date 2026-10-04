@@ -22,12 +22,14 @@ const server = await createServer({
 });
 
 try {
-  const { buildSummary, CHECKS } = await server.ssrLoadModule("/src/summary/summary.js");
+  const { buildSummary, addRecentChanges, CHECKS } = await server.ssrLoadModule("/src/summary/summary.js");
   const { renderSummaryMarkdown, describeProblem } = await server.ssrLoadModule("/src/summary/markdown.js");
   const summary = await buildSummary({
     onProgress: (done, total) => process.stdout.write(`\r法令 ${done}/${total}`),
   });
   process.stdout.write("\n");
+  // 直近の改正（1つ前の版との違い）と、告示などの更新・URL の移転の印も付ける（画面と同じ）。
+  await addRecentChanges(summary);
   const md = renderSummaryMarkdown(summary, CHECKS, {
     origin: "`npm run summary` で作った表です。手で直さないでください。トップ画面の表と同じ組み立て（`src/summary/`）です。",
   });

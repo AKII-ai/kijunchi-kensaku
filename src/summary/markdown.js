@@ -30,11 +30,17 @@ export function numberCells({ columns, rows }) {
       if (cell.failed) return { text: "取得できず", kind: "missing" };
       if (!cell.text) return { text: "―", kind: "empty" };
       const kind = cell.supplement ? "supplement" : "value";
-      // 参照先の URL を最後の確認で開けなかったセル。値は前回保存したページのもの。
-      const text = cell.unreachable ? `${cell.text}（参照不可）` : cell.text;
-      if (!cell.note) return { text, kind, unreachable: Boolean(cell.unreachable) };
+      // 直近の改正・更新（前の値）、URL の移転、参照先を開けなかったセルは、文字で添える。
+      const text = [
+        cell.text,
+        cell.change ? (cell.change.added ? `（${cell.change.kind}で追加）` : `（${cell.change.kind}前 ${cell.change.prev}）`) : "",
+        cell.moved ? "（URL変更）" : "",
+        cell.unreachable ? "（参照不可）" : "",
+      ].join("");
+      const flags = { unreachable: Boolean(cell.unreachable), changed: Boolean(cell.change) };
+      if (!cell.note) return { text, kind, ...flags };
       notes.push({ row: r.name, column: columns[i].name, text: cell.note });
-      return { text, kind, note: notes.length, unreachable: Boolean(cell.unreachable) };
+      return { text, kind, note: notes.length, ...flags };
     }),
   }));
   return { table, notes };
@@ -99,6 +105,7 @@ export const LEGEND = [
   "―は、その出典にその物質の項目が無いこと（規制が無いという意味ではない）。",
   "同じ項目で条件の違う値は、条件を添えて並べる（例: 海域以外／海域）。",
   "「要監視」「目標」が頭に付いた値は、その列の本来の基準ではなく、上の「根拠と注」に書いた指針値・目標値。",
+  "「改正」「更新」は、直近2年に施行された法令の改正、または保存した告示・通知の更新で値が変わったセル（かっこは前の値）。「URL変更」は参照先の URL が移ったもの（新しい URL にしてある）。",
   "「参照不可」は、最後に確かめたとき参照先の URL を開けなかったもの（列見出しにあればその列すべて）。値は前回保存したページのもの。",
   "載せていないもの: 要監視項目・水質管理目標設定項目のうちこの表に行の無い物質、水道の要検討項目（現行の一覧を公式資料で確かめられていない）、都道府県の上乗せ基準。",
 ];
@@ -110,7 +117,7 @@ function cellMd(s) {
 /** 列見出し（Markdown・Excel 用）。「土壌環境基準（mg/L） 注1」 */
 export function columnHeader(c, basis) {
   const no = basis.colNo.get(c.name);
-  return `${c.name}（${c.unit}）${no ? ` 注${no}` : ""}${c.unreachable ? "（参照不可）" : ""}`;
+  return `${c.name}（${c.unit}）${no ? ` 注${no}` : ""}${c.moved ? "（URL変更）" : ""}${c.unreachable ? "（参照不可）" : ""}`;
 }
 
 /** 物質名（Markdown・Excel 用）。「ダイオキシン類 注9」 */

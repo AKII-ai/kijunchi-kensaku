@@ -3,11 +3,11 @@
  * API の URL の組み立ては src/api/、抜き出しは src/extract/ にある。
  */
 
-import { describeFetchFailure, fetchLawData, fetchRevisions, lawCard, searchLaws } from "../api/egov.js";
+import { describeFetchFailure, fetchLawData, fetchRevisions, lawCard, searchLaws, setBypassCache } from "../api/egov.js";
 import { extractRecords, formatValue, groupByEra } from "../extract/extract.js";
 import { getLayout } from "../extract/layout.js";
 import { buildMatrixEras } from "../extract/matrix.js";
-import { buildSummary, CHECKS } from "../summary/summary.js";
+import { addRecentChanges, buildSummary, CHECKS, LAST_CHECKED } from "../summary/summary.js";
 import { downloadLaw, downloadSummary } from "../export/download.js";
 import { LEGEND, basisNotes } from "../summary/markdown.js";
 import { FEATURED } from "./featured.js";
@@ -207,23 +207,58 @@ async function loadFeatured() {
 // ------------------------------------------------------------ 主要基準一覧
 
 /** 最初の画面の一番上。物質×基準の1枚の表。法令は API の現行版、告示は保存したページの読み取り結果。 */
-function loadSummary() {
-  if (summaryLoad) return summaryLoad;
-  els.summary.innerHTML = `
-    <h2 class="summary__heading" id="summary-heading">主要基準一覧</h2>
-    <p class="progress">法令の現行版を取得しています… <span id="summary-progress"></span></p>`;
+/**
+ * 表を先に出し、直近の改正・更新の印はあとから足して描き直す（1つ前の版の取得で待たせないため）。
+ * fresh: 「最新に更新」から呼んだとき。ブラウザの保存を使わず e-Gov から取り直す。
+ */
+let summaryToken = 0;
+function loadSummary({ fresh = false } = {}) {
+  if (summaryLoad && !fresh) return summaryLoad;
+  const token = ++summaryToken;
+  if (!lastSummary) {
+    els.summary.innerHTML = `
+      <h2 class="summary__heading" id="summary-heading">主要基準一覧</h2>
+      <p class="progress">法令の現行版を取得しています… <span id="summary-progress"></span></p>`;
+  }
+  setBypassCache(fresh);
   summaryLoad = buildSummary({
     onProgress: (done, total) => {
       const label = document.querySelector("#summary-progress");
       if (label) label.textContent = `${done} / ${total}`;
     },
-  }).then(renderSummary).catch((err) => {
+  }).then(async (summary) => {
+    if (token !== summaryToken) return;
+    summary.fetchedAt = new Date();
+    renderSummary(summary);
+    await addRecentChanges(summary);
+    if (token === summaryToken) renderSummary(summary);
+  }).catch((err) => {
     summaryLoad = null;
     els.summary.innerHTML = `
       <h2 class="summary__heading" id="summary-heading">主要基準一覧</h2>
       <p class="status status--error">${esc(describeFetchFailure(err))}</p>`;
-  });
+  }).finally(() => setBypassCache(false));
   return summaryLoad;
+}
+
+function hhmm(d) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return d ? `${d.getMonth() + 1}月${d.getDate()}日 ${pad(d.getHours())}:${pad(d.getMinutes())}` : "";
+}
+
+/** 直近の改正・更新の印。かっこは前の値（法令の表の「変更前」と同じ赤いかっこ）。 */
+function changeMark(change) {
+  if (!change) return "";
+  const what = change.kind === "改正" ? `${change.date} 施行の改正` : `${change.date} の出典の更新`;
+  return ` <span class="chg-tag" title="${esc(`${what}で変わりました。かっこは前の値です。`)}">${esc(change.kind)}</span>`
+    + `<span class="change-from">（${change.added ? "前の版に無し" : esc(change.prev)}）</span>`;
+}
+
+/** 参照先の URL が移ったときの印。新しい URL にしてある。 */
+function movedMark(moved) {
+  if (!moved) return "";
+  const title = `参照先の URL が移っていたので新しい URL にしました（${moved.date} 確認）。${moved.from} → ${moved.to}`;
+  return ` <span class="moved-tag" title="${esc(title)}">URL変更</span>`;
 }
 
 function urlLink(url) {
@@ -246,8 +281,10 @@ function summaryCell(cell, noteNo) {
   const text = cell.text.length > 14 ? `<span class="long">${esc(cell.text)}</span>` : esc(cell.text);
   const from = cell.item ? `${cell.from}「${cell.item}」` : cell.from;
   const mark = noteNo ? `<span class="note-mark" title="${esc(cell.note)}">※${noteNo}</span>` : "";
-  // 要監視・目標など、列の本来の基準でない値は色を変える。
-  return `<td${cell.supplement ? ' class="is-supplement"' : ""} title="${esc(from)}">${text}${mark}${deadMark(cell.unreachable)}</td>`;
+  // 要監視・目標など、列の本来の基準でない値は色を変える。直近に変わった値は薄い黄色。
+  const cls = [cell.supplement ? "is-supplement" : "", cell.change ? "is-changed" : ""].filter(Boolean).join(" ");
+  return `<td${cls ? ` class="${cls}"` : ""} title="${esc(from)}">${text}${mark}${changeMark(cell.change)}${
+    movedMark(cell.moved)}${deadMark(cell.unreachable)}</td>`;
 }
 
 /** 根拠のリンク。法令は e-Gov のほかに、アプリでその法令の表を開くボタンも付ける。 */
@@ -306,6 +343,9 @@ function renderSummary(summary) {
   els.summary.innerHTML = `
     <h2 class="summary__heading" id="summary-heading">主要基準一覧</h2>
     <div class="summary__tools">
+      <button type="button" class="download-btn" data-refresh-summary>最新に更新</button>
+      <span class="summary__status">法令は e-Gov から ${esc(hhmm(summary.fetchedAt))} に取得${
+    summary.changesChecked ? "" : "（改正の有無を確認中…）"}。告示・通知は ${esc(LAST_CHECKED || "―")} に確認（GitHub で毎週自動）。</span>
       <button type="button" class="summary__reset" data-reset-widths>列幅を戻す</button>
       <button type="button" class="download-btn" data-download="summary">ダウンロード（Excel・Markdown／zip）</button>
     </div>
@@ -316,7 +356,7 @@ function renderSummary(summary) {
         <thead><tr>
           <th class="col-name">物質名</th>
           ${columns.map((c) => `<th>${esc(c.name)}${noteMark(basis.colNo.get(c.name), basisTitle(basis.colNo.get(c.name)))}<span class="unit">${
-    esc(c.unit)}</span>${deadMark(c.unreachable)}</th>`).join("")}
+    esc(c.unit)}</span>${movedMark(c.moved)}${deadMark(c.unreachable)}</th>`).join("")}
         </tr></thead>
         <tbody>${body}</tbody>
       </table>
@@ -658,6 +698,12 @@ function bindNav() {
     }
     const dl = e.target.closest?.("[data-download]");
     if (dl) runDownload(dl);
+    const refresh = e.target.closest?.("[data-refresh-summary]");
+    if (refresh && !refresh.disabled) {
+      refresh.disabled = true;
+      refresh.textContent = "更新中…";
+      loadSummary({ fresh: true });
+    }
   });
 }
 

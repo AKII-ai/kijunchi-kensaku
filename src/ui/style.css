@@ -446,6 +446,24 @@ table.summary-table {
   cursor: help;
 }
 
+/* 直近の改正・更新の印と、URL の移転の印。 */
+.chg-tag,
+.moved-tag {
+  display: inline-block;
+  margin-left: 2px;
+  padding: 0 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.chg-tag { border: 1px solid #b07a00; color: #7a5200; background: #fff; }
+.moved-tag { border: 1px solid #1a56a8; color: #1a56a8; background: #fff; }
+.summary-table td.is-changed { background: #fff3c4; }
+.summary__status { color: #555; font-size: 0.85rem; }
+
 .link-btn {
   padding: 0 6px;
   border: 1px solid #1a56a8;

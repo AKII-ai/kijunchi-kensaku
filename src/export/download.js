@@ -198,6 +198,8 @@ export async function downloadSummary(summary, checks) {
         cell.alignment = { vertical: "top", horizontal: "center" };
       } else if (c?.kind === "missing") {
         cell.font = { color: { argb: COLOR.missing } };
+      } else if (c?.changed) {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLOR.changed } };
       } else if (c?.unreachable) {
         cell.font = { color: { argb: COLOR.missing } };
       } else if (c?.kind === "supplement") {

@@ -6,7 +6,7 @@
  * 開くたびに埋める。トップ画面と docs/主要基準一覧.md（npm run summary）は、どちらもこのファイルで作る。
  */
 
-import { fetchLawData } from "../api/egov.js";
+import { fetchLawData, fetchRevisions } from "../api/egov.js";
 import { extractRecords } from "../extract/extract.js";
 import { firstTable, splitSections } from "../extract/layout.js";
 import { shortItem } from "../extract/matrix.js";
@@ -15,16 +15,27 @@ import COLUMNS_MD from "./columns.md?raw";
 import ROWS_MD from "./rows.md?raw";
 
 const READ = import.meta.glob("../../sources/read/*.json", { eager: true, import: "default" });
+const PREVIOUS = import.meta.glob("../../sources/read/_previous/*.json", { eager: true, import: "default" });
+const special = (name) => Object.entries(READ).find(([path]) => path.endsWith(`/${name}`))?.[1];
 
-/** 出典の読み取り結果。名前 → { name, url, obtained, checked, file, rows } */
+/** 出典の読み取り結果。名前 → { name, url, obtained, checked, file, rows }。「_」で始まるファイルは記録なので除く。 */
 export const SOURCES = Object.fromEntries(
   Object.entries(READ)
-    .filter(([path]) => !path.endsWith("/_check.json"))
+    .filter(([path]) => !/\/_[^/]*\.json$/.test(path))
     .map(([, data]) => [data.name, data]),
 );
 
 /** python tools/sources.py check の結果。無ければ空。 */
-export const CHECKS = Object.entries(READ).find(([path]) => path.endsWith("/_check.json"))?.[1] || [];
+export const CHECKS = special("_check.json") || [];
+
+/** これまでの「更新」「移転」の記録（新しい順にしておく）。 */
+const CHANGES = [...(special("_changes.json") || [])].sort((a, b) => (a.date < b.date ? 1 : -1));
+
+/** 最後に出典を確かめた日（画面に出す）。 */
+export const LAST_CHECKED = CHECKS.map((c) => c.date).sort().pop() || "";
+
+/** 「改正」「更新」「URL変更」を表に出す期間（日）。これより古い変更は印を付けない。 */
+export const RECENT_DAYS = 730;
 
 /** 最後の確認で「開けない」だった出典。名前と URL の両方で引けるようにする。 */
 const UNREACHABLE = new Map();
@@ -355,4 +366,83 @@ export async function buildSummary({ fetchLaw = fetchLawData, onProgress } = {})
   }
   const labels = [...labelMap.values()].map((l) => ({ ...l, links: markDead(uniqueLinks(l.sources)) }));
   return { columns, rows, laws: lawOrder, sources: usedSources, labels, problems };
+}
+
+// ---------------------------------------------------------------- 最近の改正・更新
+
+function daysSince(iso) {
+  if (!iso) return Infinity;
+  return (Date.now() - new Date(`${iso}T00:00:00`).getTime()) / 86400000;
+}
+
+/**
+ * 直近 RECENT_DAYS 日の変更をセルに付ける（表を先に出し、あとから呼ぶ）。
+ *   法令 … 現行版の施行日が期間内なら、1つ前の版と比べて値の変わったセルに change = { kind: "改正", prev, date }
+ *   告示など … 「更新」の記録が期間内なら、そのとき残した前の読み取り結果と比べて change = { kind: "更新", prev, date }
+ *   URL の移転 … 列の出典なら列に、別の出典から取ったセルならセルに moved = { from, to, date }
+ * 法令の取得に失敗しても表はそのまま（印が付かないだけ）。
+ */
+export async function addRecentChanges(summary, { fetchLaw = fetchLawData, fetchRevs = fetchRevisions } = {}) {
+  const { columns, rows } = summary;
+  const lawIds = [...new Set(rows.flatMap((r) => r.cells.map((c) => c.from)).filter((f) => LAW_ID.test(f)))];
+  const previousLaw = new Map();
+  await Promise.all(lawIds.map(async (id) => {
+    try {
+      const revs = (await fetchRevs(id)).filter((rv) => rv.amendment_enforcement_date && rv.law_revision_id);
+      const [current, prev] = revs;
+      if (!current || !prev || daysSince(current.amendment_enforcement_date) > RECENT_DAYS) return;
+      previousLaw.set(id, { date: current.amendment_enforcement_date, rows: extractRecords(await fetchLaw(prev.law_revision_id)) });
+    } catch {
+      /* 改正の印が付かないだけ */
+    }
+  }));
+
+  const previousSource = new Map();
+  for (const ch of CHANGES) {
+    if (ch.kind !== "更新" || !ch.previous || previousSource.has(ch.name) || daysSince(ch.date) > RECENT_DAYS) continue;
+    const data = Object.entries(PREVIOUS).find(([path]) => path.endsWith(`/${ch.previous.split("/").pop()}`))?.[1];
+    if (data) previousSource.set(ch.name, { date: ch.date, rows: data.rows || [] });
+  }
+  const moved = new Map();
+  for (const ch of CHANGES) {
+    if (ch.kind === "移転" && !moved.has(ch.name) && daysSince(ch.date) <= RECENT_DAYS) {
+      moved.set(ch.name, { from: ch.from_url, to: ch.to_url, date: ch.date });
+    }
+  }
+
+  for (const c of columns) c.moved = c.sources.map((x) => moved.get(x)).find(Boolean) || null;
+  for (const r of rows) {
+    r.cells.forEach((cell, i) => {
+      const c = columns[i];
+      if (!cell.from || cell.missing || cell.failed) return;
+      if (!c.sources.includes(cell.from) && moved.has(cell.from)) cell.moved = moved.get(cell.from);
+      const key = itemKey(cell.item);
+      const label = cell.label || "";
+      let prevText = null;
+      let found = false;
+      let kind = "";
+      let date = "";
+      if (previousLaw.has(cell.from)) {
+        const p = previousLaw.get(cell.from);
+        const hits = p.rows.filter((x) => (!c.tables.length || c.tables.includes(x.table)) && itemKey(x.item_raw) === key);
+        found = hits.length > 0;
+        prevText = found ? combineHits(hits.map((h) => ({ raw: h.value_raw, condition: h.condition || "" })), c.unit, label).text : null;
+        kind = "改正";
+        date = p.date;
+      } else if (previousSource.has(cell.from)) {
+        const p = previousSource.get(cell.from);
+        const hit = p.rows.find((x) => itemKey(x.item) === key);
+        found = Boolean(hit);
+        prevText = found ? combineHits([{ raw: hit.value_raw, condition: "" }], c.unit, label).text : null;
+        kind = "更新";
+        date = p.date;
+      } else {
+        return;
+      }
+      if (found && prevText === cell.text) return;
+      cell.change = { kind, date, prev: found ? prevText : "", added: !found };
+    });
+  }
+  summary.changesChecked = true;
+  return summary;
 }
