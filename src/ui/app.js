@@ -9,6 +9,7 @@ import { getLayout } from "../extract/layout.js";
 import { buildMatrixEras } from "../extract/matrix.js";
 import { buildSummary, CHECKS } from "../summary/summary.js";
 import { downloadLaw, downloadSummary } from "../export/download.js";
+import { READING_NOTES } from "../summary/markdown.js";
 import { FEATURED } from "./featured.js";
 
 const els = {
@@ -234,12 +235,15 @@ function summaryCell(cell, noteNo) {
   const text = cell.text.length > 14 ? `<span class="long">${esc(cell.text)}</span>` : esc(cell.text);
   const from = cell.item ? `${cell.from}「${cell.item}」` : cell.from;
   const mark = noteNo ? `<span class="note-mark" title="${esc(cell.note)}">※${noteNo}</span>` : "";
-  return `<td title="${esc(from)}">${text}${mark}</td>`;
+  // 要監視・目標など、列の本来の基準でない値は色を変える。
+  return `<td${cell.supplement ? ' class="is-supplement"' : ""} title="${esc(from)}">${text}${mark}</td>`;
 }
 
 function renderSummary(summary) {
   lastSummary = summary;
-  const { columns, rows, laws, sources, problems } = summary;
+  const { columns, rows, laws, sources, problems, labels = [] } = summary;
+  const colNotes = columns.filter((c) => c.note);
+  const colNoteNo = new Map(colNotes.map((c, i) => [c.name, i + 1]));
   const notes = [];
   let group = "";
   const body = rows.map((r) => {
@@ -281,11 +285,18 @@ function renderSummary(summary) {
         ${colGroup(columns.length + 1)}
         <thead><tr>
           <th class="col-name">物質名</th>
-          ${columns.map((c) => `<th>${esc(c.name)}<span class="unit">${esc(c.unit)}</span></th>`).join("")}
+          ${columns.map((c) => `<th>${esc(c.name)}${colNoteNo.has(c.name)
+    ? `<sup class="col-note" title="${esc(c.note)}">注${colNoteNo.get(c.name)}</sup>` : ""}<span class="unit">${esc(c.unit)}</span></th>`).join("")}
         </tr></thead>
         <tbody>${body}</tbody>
       </table>
     </div></div>
+    ${colNotes.length ? `
+      <h3 class="summary__sub">列の注記</h3>
+      <ol class="summary__notes summary__notes--plain">${colNotes.map((c, i) => `<li>注${i + 1} ${esc(c.name)}: ${esc(c.note)}</li>`).join("")}</ol>` : ""}
+    ${labels.length ? `
+      <h3 class="summary__sub">頭に語が付いた値</h3>
+      <ul class="summary__notes summary__notes--plain">${labels.map((l) => `<li><span class="is-supplement">${esc(l.label)}</span>: ${esc(l.meaning)}</li>`).join("")}</ul>` : ""}
     ${notes.length ? `
       <h3 class="summary__sub">※ 条件付きの基準（文言のまま）</h3>
       <ol class="summary__notes">${notes.map((n) => `<li>${esc(n.row)}／${esc(n.column)}: ${esc(n.text)}</li>`).join("")}</ol>` : ""}
@@ -296,7 +307,8 @@ function renderSummary(summary) {
       ${sources.map((src) => `<li>${esc(src.name)}（環境省、入手日 ${esc(src.obtained)}）… <a href="${
     esc(src.url)}" target="_blank" rel="noopener">${esc(src.url)}</a></li>`).join("")}
     </ul>
-    <p class="summary__lead">地下浸透は平成元年環境庁告示第39号の備考欄の値です。環境省掲載の全文は平成24年改正までのため、令和6年改正（六価クロム化合物）を改正の概要から上書きしています。</p>`;
+    <h3 class="summary__sub">読み方の注意</h3>
+    <ul class="summary__notes">${READING_NOTES.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>`;
   els.summary.querySelectorAll("[data-law-id]").forEach((btn) => {
     btn.addEventListener("click", () => selectLaw(btn.dataset.lawId, btn.dataset.title));
   });

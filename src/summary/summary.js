@@ -34,25 +34,39 @@ function tableOf(section) {
   return firstTable(section) || { header: [], body: [] };
 }
 
+const list = (cell) => String(cell || "").split(/[、,]/).map((s) => s.trim()).filter(Boolean);
+
 export function parseColumns(text) {
   const sections = splitSections(text);
-  const cols = tableOf(sections.find((s) => s.title === "列") || { lines: [] });
-  const names = tableOf(sections.find((s) => s.title.startsWith("法令名")) || { lines: [] });
+  const section = (pred) => tableOf(sections.find(pred) || { lines: [] });
+  const cols = section((s) => s.title === "列");
+  const names = section((s) => s.title.startsWith("法令名"));
+  const extra = section((s) => s.title === "補う出典");
   const at = (t, name) => t.header.indexOf(name);
   const columns = cols.body.map((row) => {
-    const sources = (row[at(cols, "出典")] || "").split(/[、,]/).map((s) => s.trim()).filter(Boolean);
+    // 「別表第二=生活環境項目」と書いた表は、その表から取った値の頭に語を付ける。
+    const tables = list(row[at(cols, "表")]).map((t) => {
+      const [name, label] = t.split("=").map((x) => x.trim());
+      return { name, label: label || "" };
+    });
     return {
       name: row[at(cols, "列名")],
       unit: row[at(cols, "単位")] || "",
-      sources,
-      tables: (row[at(cols, "表")] || "").split(/[、,]/).map((s) => s.trim()).filter(Boolean),
+      sources: list(row[at(cols, "出典")]),
+      tables: tables.map((t) => t.name),
+      tableLabels: Object.fromEntries(tables.filter((t) => t.label).map((t) => [t.name, t.label])),
+      note: at(cols, "注記") >= 0 ? row[at(cols, "注記")] || "" : "",
     };
   }).filter((c) => c.name);
   const lawTitles = Object.fromEntries(names.body.map((row) => [row[at(names, "法令ID")], {
     title: row[at(names, "法令名")],
     use: row[at(names, "使う表の意味")] || "",
   }]));
-  return { columns, lawTitles };
+  // 列の本来の出典に無い物質を補う出典（要監視項目など）。セルの頭に付ける語と、その意味。
+  const sourceLabels = Object.fromEntries(extra.body.filter((row) => row[at(extra, "出典")]).map((row) => [
+    row[at(extra, "出典")], { label: row[at(extra, "頭に付ける語")] || "", meaning: row[at(extra, "意味")] || "" },
+  ]));
+  return { columns, lawTitles, sourceLabels };
 }
 
 /** rows.md。「## 分類」ごとに | 物質名 | 列名… | の表。セルは、その列の出典での呼び方。 */
@@ -123,8 +137,23 @@ export function cellText(raw, colUnit) {
   }
   if (!value) return { text: src, note: "" };
   const suffix = /未満|以上|を超える/.exec(cond || "")?.[0] || "";
-  const withUnit = unit && unit !== colUnit ? `${value} ${unit}` : value;
-  return { text: suffix ? `${withUnit} ${suffix}` : withUnit, note };
+  const base = suffix ? `${value} ${suffix}` : value;
+  // 列見出しの単位と違う値は、単位を付けてかっこ書きにする。
+  if (unit && unit !== colUnit) return { text: `（${value} ${unit}${suffix ? ` ${suffix}` : ""}）`, note };
+  return { text: base, note };
+}
+
+/**
+ * 同じ項目で条件の違う値が複数あるとき（排水基準の海域以外／海域など）は、条件を添えて並べる。
+ * label はセルの頭に付ける語（要監視、目標、生活環境項目など）。
+ */
+function combineHits(hits, colUnit, label) {
+  const parts = hits.map((h) => cellText(h.raw, colUnit));
+  const text = hits.length === 1
+    ? parts[0].text
+    : parts.map((p, i) => (hits[i].condition ? `${p.text}（${hits[i].condition}）` : p.text)).join(" / ");
+  const note = parts.map((p) => p.note).filter(Boolean).join(" ／ ");
+  return { text: label && text ? `${label} ${text}` : text, note };
 }
 
 // ---------------------------------------------------------------- 値を集める
@@ -138,18 +167,24 @@ function sourceRef(ref, column) {
   return { sources: column.sources, item: ref };
 }
 
+/** 出典の中の、その項目の行。法令は同じ表に条件違いの行が複数あることがある。 */
 function findIn(source, item, column, laws) {
   const key = itemKey(item);
   if (LAW_ID.test(source)) {
     const law = laws.get(source);
     if (!law) return null;
-    const hit = law.rows.find((r) => (!column.tables.length || column.tables.includes(r.table))
+    const rows = law.rows.filter((r) => (!column.tables.length || column.tables.includes(r.table))
       && itemKey(r.item_raw) === key);
-    return hit ? { raw: hit.value_raw, from: source, item: hit.item_raw } : null;
+    if (!rows.length) return null;
+    return {
+      hits: rows.map((r) => ({ raw: r.value_raw, condition: r.condition || "" })),
+      from: source,
+      item: rows[0].item_raw,
+      table: rows[0].table,
+    };
   }
-  const data = SOURCES[source];
-  const hit = data?.rows.find((r) => itemKey(r.item) === key);
-  return hit ? { raw: hit.value_raw, from: source, item: hit.item } : null;
+  const hit = SOURCES[source]?.rows.find((r) => itemKey(r.item) === key);
+  return hit ? { hits: [{ raw: hit.value_raw, condition: "" }], from: source, item: hit.item, table: "" } : null;
 }
 
 function lawIdsOf(columns, rows) {
@@ -169,7 +204,7 @@ function lawIdsOf(columns, rows) {
  * 返り値: { columns, rows: [{ group, name, cells: [{ text, note, from, item, missing }] }], laws, sources, problems }
  */
 export async function buildSummary({ fetchLaw = fetchLawData, onProgress } = {}) {
-  const { columns, lawTitles } = parseColumns(COLUMNS_MD);
+  const { columns, lawTitles, sourceLabels } = parseColumns(COLUMNS_MD);
   const specRows = parseRows(ROWS_MD, columns);
   const laws = new Map();
   const problems = [];
@@ -202,7 +237,16 @@ export async function buildSummary({ fetchLaw = fetchLawData, onProgress } = {})
       const { sources, item } = sourceRef(ref, c);
       for (const s of sources) {
         const hit = findIn(s, item, c, laws);
-        if (hit) return { ...cellText(hit.raw, c.unit), from: hit.from, item: hit.item, missing: false };
+        if (!hit) continue;
+        const label = sourceLabels[hit.from]?.label || c.tableLabels[hit.table] || "";
+        return {
+          ...combineHits(hit.hits, c.unit, label),
+          from: hit.from,
+          item: hit.item,
+          label,
+          supplement: Boolean(sourceLabels[hit.from]),
+          missing: false,
+        };
       }
       // 法令が取れなかったときは、取得の失敗として表の上に1回だけ出す。
       if (sources.every((s) => LAW_ID.test(s) && !laws.has(s))) {
@@ -227,5 +271,10 @@ export async function buildSummary({ fetchLaw = fetchLawData, onProgress } = {})
 
   // 出典欄は列の順に並べる（取得が終わった順にしない）。
   const lawOrder = [...laws.values()].sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
-  return { columns, rows, laws: lawOrder, sources: usedSources, problems };
+  // 表に出てくる「頭に付ける語」と、その意味（表の下に出す）。
+  const usedLabels = [...new Set(rows.flatMap((r) => r.cells.map((c) => c.from)))]
+    .filter((s) => sourceLabels[s]?.label)
+    .map((s) => ({ source: s, ...sourceLabels[s] }));
+  const labels = [...new Map(usedLabels.map((l) => [l.label, l])).values()];
+  return { columns, rows, laws: lawOrder, sources: usedSources, labels, problems };
 }

@@ -1,0 +1,117 @@
+{
+ "name": "要監視項目（公共用水域）",
+ "url": "https://www.env.go.jp/content/000361287.pdf",
+ "obtained": "2026-10-04",
+ "checked": "2026-10-04",
+ "file": "sources/saved/要監視項目_通知_2026-10-04.pdf",
+ "rows": [
+  {
+   "item": "クロロホルム",
+   "value_raw": "0.06mg/l以下"
+  },
+  {
+   "item": "トランス－１，２－ジクロロエチレン",
+   "value_raw": "0.04mg/l以下"
+  },
+  {
+   "item": "１，２－ジクロロプロパン",
+   "value_raw": "0.06mg/l以下"
+  },
+  {
+   "item": "ｐ－ジクロロベンゼン",
+   "value_raw": "0.2mg/l以下"
+  },
+  {
+   "item": "イソキサチオン",
+   "value_raw": "0.008mg/l以下"
+  },
+  {
+   "item": "ダイアジノン",
+   "value_raw": "0.005mg/l以下"
+  },
+  {
+   "item": "フェニトロチオン（ＭＥＰ）",
+   "value_raw": "0.003mg/l以下"
+  },
+  {
+   "item": "イソプロチオラン",
+   "value_raw": "0.04mg/l以下"
+  },
+  {
+   "item": "オキシン銅（有機銅）",
+   "value_raw": "0.04mg/l以下"
+  },
+  {
+   "item": "クロロタロニル（ＴＰＮ）",
+   "value_raw": "0.05mg/l以下"
+  },
+  {
+   "item": "プロピザミド",
+   "value_raw": "0.008mg/l以下"
+  },
+  {
+   "item": "ＥＰＮ",
+   "value_raw": "0.006mg/l以下"
+  },
+  {
+   "item": "ジクロルボス（ＤＤＶＰ）",
+   "value_raw": "0.008mg/l以下"
+  },
+  {
+   "item": "フェノブカルブ（ＢＰＭＣ）",
+   "value_raw": "0.03mg/l以下"
+  },
+  {
+   "item": "イプロベンホス（ＩＢＰ）",
+   "value_raw": "0.008mg/l以下"
+  },
+  {
+   "item": "クロルニトロフェン（ＣＮＰ）",
+   "value_raw": "－"
+  },
+  {
+   "item": "トルエン",
+   "value_raw": "0.6mg/l以下"
+  },
+  {
+   "item": "キシレン",
+   "value_raw": "0.4mg/l以下"
+  },
+  {
+   "item": "フタル酸ジエチルヘキシル",
+   "value_raw": "0.06mg/l以下"
+  },
+  {
+   "item": "ニッケル",
+   "value_raw": "－"
+  },
+  {
+   "item": "モリブデン",
+   "value_raw": "0.07mg/l以下"
+  },
+  {
+   "item": "アンチモン",
+   "value_raw": "0.02mg/l以下"
+  },
+  {
+   "item": "塩化ビニルモノマー",
+   "value_raw": "0.002mg/l以下"
+  },
+  {
+   "item": "エピクロロヒドリン",
+   "value_raw": "0.0004mg/l以下"
+  },
+  {
+   "item": "全マンガン",
+   "value_raw": "0.2mg/l以下"
+  },
+  {
+   "item": "ウラン",
+   "value_raw": "0.002mg/l以下"
+  },
+  {
+   "item": "ペルフルオロオクタンスルホン酸（PFOS）及びペルフルオロオクタン酸（PFOA）",
+   "value_raw": "0.00005mg/l以下"
+  }
+ ]
+}

@@ -426,6 +426,11 @@ table.summary-table {
 .summary-table td.is-empty { color: #999; text-align: center; }
 .summary-table td.is-missing { color: #a40000; }
 .summary-table .note-mark { color: #1a56a8; font-weight: 700; margin-left: 2px; cursor: help; }
+/* 要監視・目標など、列の本来の基準でない値（rows.md で別の出典から補った値）。 */
+.is-supplement { color: #6b4e00; }
+.summary-table td.is-supplement { background: #fbf7ec; }
+.summary-table .col-note { margin-left: 2px; color: #1a56a8; font-weight: 700; cursor: help; }
+.summary__notes--plain { list-style: none; padding-left: 0; }
 
 .summary__notes,
 .summary__sources {

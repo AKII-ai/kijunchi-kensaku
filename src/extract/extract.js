@@ -128,9 +128,10 @@ function isHeaderRow(cells) {
   return filled.every((c) => HEADER_WORD.test(c));
 }
 
+/** 「海域以外の…に排出されるもの○○、海域に…○○」を条件ごとに分ける。1つだけ書かれた行もその条件を付ける。 */
 function splitSeaCondition(text) {
   const parts = String(text).split(SEA_SPLIT);
-  if (parts.length < 5) return [["", text]];
+  if (parts.length < 3) return [["", text]];
   const out = [];
   for (let i = 1; i < parts.length; i += 2) {
     out.push([parts[i].includes("海域以外") ? "海域以外" : "海域", parts[i + 1]]);
@@ -143,9 +144,14 @@ function readCells(table, cells, carry) {
   let use = cells.filter((c) => c !== "");
   if (!use.length || isHeaderRow(use)) {
     carry[table] = "";
+    carry[`${table}	項目`] = "";
     return [];
   }
   if (use.length >= 3 && KANJI_NUM_ONLY.test(use[0])) use = use.slice(1);
+  // 項目名の欄が空で、海域の区分だけを書いた続きの行（排水基準のふっ素・ほう素の「海域に排出されるもの」）は、上の行の項目。
+  if (use.length === 1 && SEA_SPLIT.test(use[0]) && carry[`${table}	項目`]) {
+    use = [carry[`${table}	項目`], use[0]];
+  }
   if (use.length < 2) return [];
   const valueRaw = use[use.length - 1];
   const itemRaw = use[use.length - 2];
@@ -154,6 +160,7 @@ function readCells(table, cells, carry) {
     return [];
   }
   if (/掲げる(項目|物質)/.test(itemRaw)) return [];
+  carry[`${table}	項目`] = itemRaw;
   const extra = use.slice(0, -2).join("／");
   if (extra) carry[table] = extra;
   const base = extra || carry[table] || "";

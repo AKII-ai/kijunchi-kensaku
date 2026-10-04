@@ -8,7 +8,7 @@
  */
 
 import {
-  LEGEND, READING_NOTES, checkAlerts, describeProblem, lawLine, numberCells, renderSummaryMarkdown, sourceLine, today,
+  LEGEND, READING_NOTES, checkAlerts, columnNotes, describeProblem, lawLine, numberCells, renderSummaryMarkdown, sourceLine, today,
 } from "../summary/markdown.js";
 import { eraLabel, eraTable, safeName, withoutChanges } from "./tables.js";
 
@@ -19,6 +19,8 @@ const COLOR = {
   red: "FFC40000",
   gray: "FF777777",
   missing: "FFA40000",
+  supplement: "FF6B4E00",
+  supplementFill: "FFFBF7EC",
   border: "FFCCCCCC",
 };
 
@@ -165,8 +167,9 @@ export async function downloadLaw(detail, { annotate = true } = {}) {
 
 export async function downloadSummary(summary, checks) {
   const { ExcelJS, zipSync, strToU8 } = await loadLibs();
-  const { columns, laws, sources, problems } = summary;
+  const { columns, laws, sources, problems, labels = [] } = summary;
   const { table, notes } = numberCells(summary);
+  const colNotes = columnNotes(columns);
   const wb = new ExcelJS.Workbook();
   wb.created = new Date();
 
@@ -177,7 +180,7 @@ export async function downloadSummary(summary, checks) {
   for (const a of checkAlerts(checks)) sheet.addRow([a]).font = { color: { argb: COLOR.missing } };
   for (const p of problems) sheet.addRow([describeProblem(p)]).font = { color: { argb: COLOR.missing } };
   sheet.addRow([]);
-  const headers = ["分類", "物質名", ...columns.map((c) => `${c.name}（${c.unit}）`)];
+  const headers = ["分類", "物質名", ...columns.map(colNotes.header)];
   const headerRow = sheet.addRow(headers);
   styleHeader(headerRow);
   const headerAt = headerRow.number;
@@ -195,6 +198,9 @@ export async function downloadSummary(summary, checks) {
         cell.alignment = { vertical: "top", horizontal: "center" };
       } else if (c?.kind === "missing") {
         cell.font = { color: { argb: COLOR.missing } };
+      } else if (c?.kind === "supplement") {
+        cell.font = { color: { argb: COLOR.supplement } };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLOR.supplementFill } };
       }
     });
   }
@@ -206,7 +212,11 @@ export async function downloadSummary(summary, checks) {
   const info = wb.addWorksheet("注記と出典");
   info.getColumn(1).width = 120;
   const heading = (t) => { info.addRow([]); info.addRow([t]).font = { bold: true }; };
-  info.addRow(["※ 条件付きの基準（文言のまま）"]).font = { bold: true };
+  info.addRow(["列の注記"]).font = { bold: true };
+  colNotes.list.forEach((c, i) => info.addRow([`注${i + 1} ${c.name}: ${c.note}`]));
+  heading("頭に語が付いた値");
+  labels.forEach((l) => info.addRow([`${l.label}: ${l.meaning}`]));
+  heading("※ 条件付きの基準（文言のまま）");
   notes.forEach((n, i) => info.addRow([`※${i + 1} ${n.row}／${n.column}: ${n.text}`]));
   if (!notes.length) info.addRow(["なし"]);
   heading("出典（法令。e-Gov 法令API）");

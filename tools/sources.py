@@ -14,6 +14,8 @@
   - 使う表:            「n番目」と書く。html-table と pdf-table で使う
   - 項目名の列:        「n列目」
   - 基準の文言の列:    「n列目」
+  - 使う見出し:        pdf-section-table で、この見出しの後の表を読む（「別紙１*」のように * で前方一致）
+  - 次の見出し:        pdf-section-table で、この見出しの前までを読む（書かなければ文書の終わりまで）
 
 PDF は PyMuPDF（pip install pymupdf）の罫線検出で表を読む。
 
@@ -36,7 +38,7 @@ NOTES = ROOT / "sources" / "notes"
 SAVED = ROOT / "sources" / "saved"
 READ = ROOT / "sources" / "read"
 
-FIELD = re.compile(r"^-\s*(URL|入手日|前回確認日|保存したファイル|読み方|使う表|項目名の列|基準の文言の列)\s*[:：]\s*(.*)$")
+FIELD = re.compile(r"^-\s*(URL|入手日|前回確認日|保存したファイル|読み方|使う表|項目名の列|基準の文言の列|使う見出し|次の見出し)\s*[:：]\s*(.*)$")
 NTH = re.compile(r"([0-9０-９]+)\s*(番目|列目)")
 
 
@@ -90,19 +92,25 @@ def read_pdf_table(path: Path, table_no: int, item_col: int, value_col: int) -> 
     """
     import fitz  # PyMuPDF
 
-    doc = fitz.open(path)
     rows: list[list] = []
-    for page in doc:
+    for page in fitz.open(path):
         tabs = page.find_tables().tables
-        if len(tabs) < table_no:
-            continue
-        table = tabs[table_no - 1]
-        ruby = ruby_spans(page)
-        for row, texts in zip(table.rows, table.extract()):
-            rows.append([
-                None if t is None else drop_ruby(clean(t), ruby, bbox)
-                for t, bbox in zip(texts, row.cells)
-            ])
+        if len(tabs) >= table_no:
+            rows.extend(table_rows(page, tabs[table_no - 1]))
+    return merge_rows(rows, item_col, value_col)
+
+
+def table_rows(page, table) -> list[list]:
+    """表の行。セルの文字からルビを除く。結合セルは None のまま残す。"""
+    ruby = ruby_spans(page)
+    return [
+        [None if t is None else drop_ruby(clean(t), ruby, bbox) for t, bbox in zip(texts, row.cells)]
+        for row, texts in zip(table.rows, table.extract())
+    ]
+
+
+def merge_rows(rows: list[list], item_col: int, value_col: int) -> list[dict]:
+    """ページの境目で割れた行（項目名・文言の片方が空）を上の行につなぐ。結合セルの行（備考など）は捨てる。"""
     merged: list[list] = []
     for r in rows:
         if len(r) < max(item_col, value_col):
@@ -116,6 +124,47 @@ def read_pdf_table(path: Path, table_no: int, item_col: int, value_col: int) -> 
             continue
         merged.append(list(r))
     return pick(merged, item_col, value_col)
+
+
+def heading_match(line: str, heading: str) -> bool:
+    """見出しの行か。空白を除いて同じなら見出し。「別紙１*」のように * で終わるときは、その文字で始まる行。"""
+    line = re.sub(r"[\s　]+", "", line)
+    heading = re.sub(r"[\s　]+", "", heading)
+    if heading.endswith("*"):
+        return line.startswith(heading[:-1])
+    return line == heading
+
+
+def read_pdf_section_table(path: Path, start: str, end: str, item_col: int, value_col: int) -> list[dict]:
+    """見出し start の後、見出し end（無ければ文書の終わり）の前にある表を、ページをまたいで1つの表として読む。
+
+    1つの PDF に同じ形の表がいくつもあるとき（要監視項目の「公共用水域」と「地下水」など）に使う。
+    """
+    import fitz
+
+    if not start:
+        raise ValueError("「使う見出し」が書かれていない")
+    rows: list[list] = []
+    inside = False
+    for page in fitz.open(path):
+        events = []
+        for b in page.get_text("dict")["blocks"]:
+            for line in b.get("lines", []):
+                text = "".join(sp["text"] for sp in line["spans"])
+                if heading_match(text, start):
+                    events.append((line["bbox"][1], "start", None))
+                elif end and heading_match(text, end):
+                    events.append((line["bbox"][1], "end", None))
+        for t in page.find_tables().tables:
+            events.append((t.bbox[1], "table", t))
+        for _, kind, table in sorted(events, key=lambda e: e[0]):
+            if kind == "start":
+                inside = True
+            elif kind == "end":
+                inside = False
+            elif inside:
+                rows.extend(table_rows(page, table))
+    return merge_rows(rows, item_col, value_col)
 
 
 def ruby_spans(page) -> list[tuple]:
@@ -155,7 +204,8 @@ def read_amendment(path: Path) -> list[dict]:
     return [{"item": m.group(1), "value_raw": m.group(2)} for m in AMEND.finditer(text)]
 
 
-HEADER = re.compile(r"^(項目|媒体|有害物質の種類|基準値|環境上の条件|備考)$")
+# 見出しの行と、番号だけ残った「削除」の行は項目にしない。
+HEADER = re.compile(r"^(項目|媒体|有害物質の種類|農薬名|基準値|環境上の条件|備考|削除)$")
 
 
 def pick(rows: list[list[str]], item_col: int, value_col: int) -> list[dict]:
@@ -201,6 +251,8 @@ READERS = {
     "html-table": lambda path, note: read_html_table(path, *table_cols(note)),
     "pdf-table": lambda path, note: read_pdf_table(path, *table_cols(note)),
     "amendment": lambda path, note: read_amendment(path),
+    "pdf-section-table": lambda path, note: read_pdf_section_table(
+        path, note.get("使う見出し", ""), note.get("次の見出し", ""), *table_cols(note)[1:]),
 }
 
 
