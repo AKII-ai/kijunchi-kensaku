@@ -164,7 +164,7 @@ function showHome() {
   els.results.innerHTML = "";
   els.detail.hidden = true;
   els.detail.innerHTML = "";
-  setStatus("下の主要基準一覧を見るか、「よく使うもの」から選ぶか、上で検索してください。");
+  setStatus("");
 }
 
 async function loadFeatured() {
@@ -272,8 +272,6 @@ function renderSummary(summary) {
   els.summary.innerHTML = `
     <h2 class="summary__heading" id="summary-heading">主要基準一覧</h2>
     <div class="summary__tools">
-      <p class="summary__lead">数値だけのセルは見出しの単位で「以下」です。※は条件付き（下に文言）。<span class="hover-only">セルにカーソルを合わせると出典の項目名が出ます。</span>
-        ―はその出典に項目が無いという意味で、規制が無いという意味ではありません。見出しの右端をドラッグすると列の幅が変わります。</p>
       <button type="button" class="summary__reset" data-reset-widths>列幅を戻す</button>
       <button type="button" class="download-btn" data-download="summary">ダウンロード（Excel・Markdown／zip）</button>
     </div>

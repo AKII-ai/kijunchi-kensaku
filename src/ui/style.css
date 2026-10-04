@@ -81,6 +81,8 @@ h1 {
 }
 
 .status { margin: 0 0 20px; color: #555; }
+/* お知らせが無いときは、余白ごと隠す。 */
+.status:empty { display: none; }
 /* URL や取得が失敗した文は赤い文字。 */
 .status[data-kind="error"],
 .status--error { color: #a40000; }
@@ -295,7 +297,7 @@ tr.is-removed td { color: #777; text-decoration: line-through; }
 
 /* ---------------------------------------------- 主要基準一覧（最初の画面） */
 
-.summary { margin: 0 0 28px; }
+.summary { margin: 16px 0 28px; }
 .summary[hidden] { display: none; }
 
 .summary__heading { margin: 0 0 4px; font-size: 1.15rem; }
